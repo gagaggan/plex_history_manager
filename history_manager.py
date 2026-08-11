@@ -9,6 +9,9 @@ import shutil
 from datetime import datetime
 
 import requests
+import json
+import socket
+from urllib.parse import quote
 from typing import Any
 
 from .plex_client import PlexClient
@@ -137,6 +140,43 @@ class HistoryManager:
                    GROUP BY s.account_id, s.metadata_type ORDER BY max(s.at) DESC"""
         with sqlite3.connect(f'file:{db_path}?mode=ro', uri=True, timeout=5) as con:
             return [{'account_id': row[0], 'account_name': row[1], 'metadata_type': row[2], 'type_name': self.media_type_name(row[2]), 'play_count': row[3] or 0, 'duration': row[4] or 0, 'first_at': row[5], 'last_at': row[6], 'row_count': row[7]} for row in con.execute(query)]
+
+    def _docker_request(self, method, path):
+        socket_path = os.environ.get('PLEX_HISTORY_DOCKER_SOCKET', '/var/run/docker.sock')
+        container = self.P.ModelSetting.to_dict().get('plex_history_docker_container') or 'plex'
+        client = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+        try:
+            client.settimeout(10)
+            client.connect(socket_path)
+            client.sendall((f'{method} /containers/{quote(str(container), safe="")}{path} HTTP/1.1\r\nHost: docker\r\nConnection: close\r\n\r\n').encode())
+            data = b''
+            while True:
+                chunk = client.recv(65536)
+                if not chunk:
+                    break
+                data += chunk
+        finally:
+            client.close()
+        header, _, body = data.partition(b'\r\n\r\n')
+        status_line = header.splitlines()[0].decode('latin1') if header else ''
+        status = int(status_line.split()[1]) if len(status_line.split()) > 1 else 0
+        if status >= 400:
+            raise RuntimeError(body.decode('utf-8', 'replace')[:300] or f'Docker API HTTP {status}')
+        return json.loads(body.decode() or '{}') if body.strip() else {}
+
+    def plex_container_status(self):
+        try:
+            data = self._docker_request('GET', '/json')
+            state = data.get('State', {})
+            return {'available': True, 'status': state.get('Status', 'unknown'), 'running': bool(state.get('Running')), 'error': ''}
+        except Exception as exc:
+            return {'available': False, 'status': 'unavailable', 'running': False, 'error': str(exc)}
+
+    def plex_container_action(self, action):
+        if action not in ('start', 'stop'):
+            raise ValueError('지원하지 않는 Plex 작업입니다.')
+        self._docker_request('POST', f'/{action}?t=15')
+        return self.plex_container_status()
 
     def _ensure_plex_stopped(self):
         try:

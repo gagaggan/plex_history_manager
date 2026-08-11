@@ -8,6 +8,7 @@ class ModuleHistory(PluginModuleBase):
         'plex_history_plex_url': 'http://127.0.0.1:32400',
         'plex_history_plex_token': '',
         'plex_history_page_size': '100',
+        'plex_history_docker_container': 'plex',
     }
 
     def __init__(self, P):
@@ -39,6 +40,10 @@ class ModuleHistory(PluginModuleBase):
                     return jsonify({'ok': False, 'error': '확인 문구가 올바르지 않습니다.'}), 400
                 self.P.history_manager.delete_one(arg1, arg2)
                 return jsonify({'ok': True, 'message': '시청기록을 삭제했습니다.'})
+            if command == 'plex_start':
+                return jsonify({'ok': True, 'data': self.P.history_manager.plex_container_action('start')})
+            if command == 'plex_stop':
+                return jsonify({'ok': True, 'data': self.P.history_manager.plex_container_action('stop')})
             if command == 'delete_statistics':
                 if req.form.get('confirm') != 'DELETE_STATISTICS':
                     return jsonify({'ok': False, 'error': '재생 통계 삭제 확인 문구가 올바르지 않습니다.'}), 400
