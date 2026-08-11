@@ -20,8 +20,21 @@ class ModuleHistory(PluginModuleBase):
                 return render_template(f'{__package__}_{name}_setting.html', arg=self.P.ModelSetting.to_dict())
             account_id = req.args.get('account_id', '')
             if page == 'statistics':
-                tree = self.P.history_manager.statistics_tree()
-                return render_template(f'{__package__}_{name}_statistics.html', rows=tree['aggregates'], types=tree['types'], plex_status=self.P.history_manager.plex_container_status())
+                all_tree = self.P.history_manager.statistics_tree()
+                tree = all_tree if not account_id else self.P.history_manager.statistics_tree(account_id)
+                statistic_users = []
+                seen_users = set()
+                for row in all_tree['aggregates']:
+                    if row['account_id'] not in seen_users:
+                        statistic_users.append({'account_id': row['account_id'], 'title': row['account_name']})
+                        seen_users.add(row['account_id'])
+                for type_node in all_tree['types']:
+                    for library in type_node['libraries']:
+                        for item in library['items']:
+                            if item['account_id'] not in seen_users:
+                                statistic_users.append({'account_id': item['account_id'], 'title': item['account_name']})
+                                seen_users.add(item['account_id'])
+                return render_template(f'{__package__}_{name}_statistics.html', rows=tree['aggregates'], types=tree['types'], statistic_users=statistic_users, account_id=account_id, plex_status=self.P.history_manager.plex_container_status())
             users = self.P.history_manager.users()
             settings = self.P.ModelSetting.to_dict()
             try:

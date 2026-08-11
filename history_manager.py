@@ -107,7 +107,7 @@ class HistoryManager:
     @staticmethod
     def history_type(row):
         value = row.get('type') or row.get('@type') or row.get('metadataType') or row.get('@metadataType') or ''
-        names = {'movie': 1, 'music': 2, 'track': 2, 'photo': 4, 'show': 8, 'episode': 9}
+        names = {'movie': 1, 'music': 2, 'track': 2, 'photo': 12, 'show': 8, 'episode': 4}
         if str(value).isdigit():
             return int(value)
         return names.get(str(value).lower(), 0)
@@ -208,7 +208,7 @@ class HistoryManager:
 
     @staticmethod
     def media_type_name(value):
-        return {1: '영화', 2: '음악', 4: '사진', 8: 'TV', 9: '에피소드'}.get(int(value or 0), f'유형 {value}')
+        return {1: '영화', 2: '음악', 4: 'TV', 8: 'TV', 9: '에피소드', 12: '기타'}.get(int(value or 0), f'유형 {value}')
 
     def statistics(self):
         db_path = self._database_path()
@@ -219,11 +219,12 @@ class HistoryManager:
         with sqlite3.connect(f'file:{db_path}?mode=ro', uri=True, timeout=5) as con:
             return [{'account_id': row[0], 'account_name': row[1], 'metadata_type': row[2], 'type_name': self.media_type_name(row[2]), 'play_count': row[3] or 0, 'duration': row[4] or 0, 'first_at': self.format_timestamp(row[5]), 'last_at': self.format_timestamp(row[6]), 'row_count': row[7]} for row in con.execute(query)]
 
-    def statistics_tree(self):
+    def statistics_tree(self, account_id=''):
         """Build media type -> library -> program/episode details.
         statistics_media is aggregate-only and has no item or library key.
         """
         db_path = self._database_path()
+        selected_account = self.account_id(account_id) if account_id else None
         aggregate_query = """SELECT s.account_id, coalesce(a.name, cast(s.account_id as text)),
                    s.metadata_type, sum(s.count), sum(s.duration), max(s.at)
                    FROM statistics_media s LEFT JOIN accounts a ON a.id=s.account_id
@@ -246,8 +247,12 @@ class HistoryManager:
                  'duration': row[4] or 0, 'last_at': self.format_timestamp(row[5])}
                 for row in con.execute(aggregate_query)
             ]
+            if selected_account is not None:
+                aggregates = [row for row in aggregates if row['account_id'] == selected_account]
             types = {}
             for row in con.execute(detail_query):
+                if selected_account is not None and row[0] != selected_account:
+                    continue
                 type_id = row[2]
                 type_node = types.setdefault(type_id, {
                     'metadata_type': type_id, 'type_name': self.media_type_name(type_id),
