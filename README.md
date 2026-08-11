@@ -15,7 +15,7 @@ FlaskFarm에서 Plex 사용자의 시청기록을 조회하고 선택적으로 �
 
 FlaskFarm 플러그인 메뉴에서 이 저장소 주소를 등록합니다.
 
-설치 후 `Plex 시청기록 → 설정`에서 Plex 주소와 관리자 토큰을 입력합니다. 기존 `plex_mate`의 Plex 주소와 토큰을 그대로 사용할 수 있습니다.
+설치 후 `Plex 시청기록 → 설정`에서 Plex 주소와 관리자 토큰을 입력할 수 있습니다. 값이 비어 있으면 같은 FlaskFarm의 `plex_mate` 설정 DB에서 `base_url`과 `base_token`을 자동으로 읽습니다.
 
 ## 주의
 

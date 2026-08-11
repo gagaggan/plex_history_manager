@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
+import os
 import re
+import sqlite3
 from typing import Any
 
 from .plex_client import PlexClient
@@ -13,11 +15,25 @@ class HistoryManager:
         self.P = plugin
         self.logger = plugin.logger
 
+    def _plex_mate_settings(self) -> tuple[str, str]:
+        db_path = os.environ.get("PLEX_HISTORY_PLEX_MATE_DB", "/data/db/plex_mate.db")
+        try:
+            with sqlite3.connect(db_path, timeout=3) as con:
+                values = dict(con.execute(
+                    "select key, value from plex_mate_setting where key in (?, ?)",
+                    ("base_url", "base_token"),
+                ).fetchall())
+            return str(values.get("base_url", "")).strip(), str(values.get("base_token", "")).strip()
+        except (OSError, sqlite3.Error):
+            return "", ""
+
     def client(self) -> PlexClient:
-        url = self.P.ModelSetting.get("plex_history_plex_url", "").strip()
-        token = self.P.ModelSetting.get("plex_history_plex_token", "").strip()
+        url = (self.P.ModelSetting.get("plex_history_plex_url", "") or "").strip()
+        token = (self.P.ModelSetting.get("plex_history_plex_token", "") or "").strip()
         if not url or not token:
-            raise RuntimeError("Plex 주소와 토큰을 먼저 설정하세요.")
+            url, token = self._plex_mate_settings()
+        if not url or not token:
+            raise RuntimeError("Plex 주소와 토큰을 먼저 설정하세요. plex_mate 설정도 자동으로 확인합니다.")
         return PlexClient(url, token)
 
     @staticmethod

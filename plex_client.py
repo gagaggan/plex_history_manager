@@ -56,8 +56,23 @@ class PlexClient:
 
     def users(self) -> list[PlexUser]:
         response = self._request('GET', '/accounts')
+        accounts = self._objects(response, 'Directory') or self._objects(response, 'Account')
+        # /accounts can contain thousands of historical account records. Keep
+        # the UI focused on accounts that actually have watch history.
+        try:
+            history_response = self._request(
+                'GET', '/status/sessions/history/all', sort='viewedAt:desc',
+                **{'X-Plex-Container-Size': 5000},
+            )
+            history_rows = self._objects(history_response, 'Video') + self._objects(history_response, 'Track')
+            active_ids = {str(row.get('accountID') or row.get('@accountID')) for row in history_rows}
+            filtered = [item for item in accounts if str(item.get('id') or item.get('@id')) in active_ids]
+            if filtered:
+                accounts = filtered
+        except requests.RequestException:
+            pass
         result = []
-        for item in (self._objects(response, 'Directory') or self._objects(response, 'Account')):
+        for item in accounts:
             account_id = item.get('id') or item.get('@id')
             if not account_id:
                 continue
