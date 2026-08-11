@@ -9,6 +9,10 @@
       <option value="">사용자를 선택하세요</option>
       {% for user in users %}<option value="{{ user.account_id }}" {% if account_id|string == user.account_id|string %}selected{% endif %}>{{ user.title }}{% if user.username %} ({{ user.username }}){% endif %}</option>{% endfor %}
     </select>
+    <button type="button" class="btn btn-danger btn-sm all-playback-delete" style="margin-left:8px">전체 시청 데이터 삭제</button>
+  </form>
+  <form id="all_playback_delete_form" class="history-delete-form" method="post" action="/plex_history_manager/ajax/history/command">
+    <input type="hidden" name="command" value="delete_all_playback"><input type="hidden" name="arg1" value=""><input type="hidden" name="arg2" value=""><input type="hidden" name="confirm" value="DELETE_ALL_PLAYBACK">
   </form>
   {% if account_id %}
   <form class="history-delete-form" method="post" action="/plex_history_manager/ajax/history/command" style="margin-bottom:16px">
@@ -48,6 +52,10 @@
   <div id="history_action_result" style="margin-top:12px"></div>
 </div>
 <script>
+$(document).on('click', '.all-playback-delete', function() {
+  if (!window.confirm('모든 사용자의 시청기록·시청상태·재생통계·대역폭 통계를 삭제합니다. Plex가 중지된 상태인지 확인하세요. DB 백업이 생성됩니다. 계속할까요?')) return;
+  $('#all_playback_delete_form').trigger('submit');
+});
 $(document).on('submit', '.history-delete-form', function(e) {
   e.preventDefault(); var form=$(this), confirmation=form.find('input[name="confirm"]').val();
   var msg=confirmation==='DELETE_ALL'?'이 사용자의 시청기록·시청상태·재생통계를 모두 삭제합니다. Plex가 중지된 상태인지 확인하세요. 계속할까요?':(confirmation==='DELETE_PROGRAM'?'이 프로그램의 모든 에피소드 기록을 삭제할까요?':(confirmation==='DELETE_GUID'?'이 항목의 시청상태와 기록을 삭제할까요?':'이 시청기록을 삭제할까요?'));

@@ -74,6 +74,12 @@ class ModuleHistory(PluginModuleBase):
                     return jsonify({'ok': False, 'error': '프로그램 삭제 확인 문구가 올바르지 않습니다.'}), 400
                 deleted = self.P.history_manager.delete_program(arg1, arg2)
                 return jsonify({'ok': True, 'message': f'프로그램 시청기록 {deleted["views"]}건과 시청상태 {deleted["settings"]}건을 삭제했습니다.'})
+            if command == 'delete_all_playback':
+                if req.form.get('confirm') != 'DELETE_ALL_PLAYBACK':
+                    return jsonify({'ok': False, 'error': '전체 시청데이터 삭제 확인 문구가 올바르지 않습니다.'}), 400
+                deleted, backup = self.P.history_manager.delete_all_playback_data()
+                total = sum(deleted.values())
+                return jsonify({'ok': True, 'message': f'전체 시청 데이터 {total}건을 삭제했습니다. 백업: {backup}'})
             if command == 'delete_all':
                 if req.form.get('confirm') != 'DELETE_ALL':
                     return jsonify({'ok': False, 'error': '전체 삭제 확인 문구가 올바르지 않습니다.'}), 400

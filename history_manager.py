@@ -457,6 +457,30 @@ class HistoryManager:
             raise ValueError('잘못된 항목 GUID입니다.')
         return self._delete_history_rows(account_id, [{'guid': guid}])
 
+    def delete_all_playback_data(self):
+        """Delete all playback-related DB rows after creating one backup."""
+        self._ensure_plex_stopped()
+        db_path = self._database_path()
+        backup_dir = '/data/db/plex_history_manager_backups'
+        os.makedirs(backup_dir, exist_ok=True)
+        backup_path = os.path.join(
+            backup_dir,
+            f"library-all-playback-{datetime.now().strftime('%Y%m%d%H%M%S')}.db",
+        )
+        shutil.copy2(db_path, backup_path)
+        deleted = {}
+        with sqlite3.connect(db_path, timeout=10) as con:
+            for table in (
+                'metadata_item_views',
+                'metadata_item_settings',
+                'statistics_media',
+                'statistics_bandwidth',
+            ):
+                cur = con.execute(f'DELETE FROM {table}')
+                deleted[table] = cur.rowcount
+            con.commit()
+        return deleted, backup_path
+
     def delete_user_data(self, account_id):
         """Delete all playback-related data for one user with a backup."""
         account_id = self.account_id(account_id)
