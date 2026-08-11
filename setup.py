@@ -5,10 +5,9 @@ from .history_manager import HistoryManager
 __menu = {
     'uri': __package__, 'name': 'Plex 시청기록',
     'list': [
-        {'uri': 'history', 'name': '시청기록', 'list': [
-            {'uri': 'home', 'name': '사용자별 기록'},
-            {'uri': 'setting', 'name': '설정'},
-        ]},
+        {'uri': 'history/home', 'name': '사용자별 기록'},
+        {'uri': 'history/statistics', 'name': '재생 통계'},
+        {'uri': 'history/setting', 'name': '설정'},
     ],
 }
 
