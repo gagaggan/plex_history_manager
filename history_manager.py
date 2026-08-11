@@ -78,7 +78,7 @@ class HistoryManager:
         # local imported database still contains views or watch settings.
         try:
             db_path = self._database_path()
-            query = """SELECT a.id, coalesce(a.name, a.username, cast(a.id as text))
+            query = """SELECT a.id, coalesce(a.name, cast(a.id as text))
                        FROM accounts a
                        WHERE EXISTS (
                            SELECT 1 FROM metadata_item_views v
@@ -91,7 +91,7 @@ class HistoryManager:
                                   OR coalesce(s.view_offset, 0)>0
                                   OR s.last_viewed_at IS NOT NULL)
                        )
-                       ORDER BY coalesce(a.name, a.username, cast(a.id as text)) COLLATE NOCASE"""
+                       ORDER BY coalesce(a.name, cast(a.id as text)) COLLATE NOCASE"""
             with sqlite3.connect(f'file:{db_path}?mode=ro', uri=True, timeout=5) as con:
                 rows = con.execute(query).fetchall()
             return [
