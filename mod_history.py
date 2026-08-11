@@ -19,7 +19,12 @@ class ModuleHistory(PluginModuleBase):
                 return render_template(f'{__package__}_{name}_setting.html', arg=self.P.ModelSetting.to_dict())
             account_id = req.args.get('account_id', '')
             users = self.P.history_manager.users()
-            rows = self.P.history_manager.history(account_id, 0, self.P.ModelSetting.get_int('plex_history_page_size') or 100) if account_id else []
+            settings = self.P.ModelSetting.to_dict()
+            try:
+                page_size = max(10, min(int(settings.get('plex_history_page_size') or 100), 500))
+            except (TypeError, ValueError):
+                page_size = 100
+            rows = self.P.history_manager.history(account_id, 0, page_size) if account_id else []
             return render_template(f'{__package__}_{name}_home.html', users=users, rows=rows, account_id=account_id)
         except Exception as e:
             self.P.logger.error(f'Exception:{str(e)}')
