@@ -39,6 +39,11 @@ class ModuleHistory(PluginModuleBase):
                     return jsonify({'ok': False, 'error': '확인 문구가 올바르지 않습니다.'}), 400
                 self.P.history_manager.delete_one(arg1, arg2)
                 return jsonify({'ok': True, 'message': '시청기록을 삭제했습니다.'})
+            if command == 'delete_statistics':
+                if req.form.get('confirm') != 'DELETE_STATISTICS':
+                    return jsonify({'ok': False, 'error': '재생 통계 삭제 확인 문구가 올바르지 않습니다.'}), 400
+                count, backup = self.P.history_manager.delete_statistics(arg1, arg2)
+                return jsonify({'ok': True, 'message': f'{count}건의 통계를 삭제했습니다. 백업: {backup}'})
             if command == 'delete_program':
                 if req.form.get('confirm') != 'DELETE_PROGRAM':
                     return jsonify({'ok': False, 'error': '프로그램 삭제 확인 문구가 올바르지 않습니다.'}), 400

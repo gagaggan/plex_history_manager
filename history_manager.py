@@ -5,6 +5,10 @@ from __future__ import annotations
 import os
 import re
 import sqlite3
+import shutil
+from datetime import datetime
+
+import requests
 from typing import Any
 
 from .plex_client import PlexClient
@@ -104,6 +108,62 @@ class HistoryManager:
             if value is not None:
                 self.client().delete_history(value)
         return len(targets)
+
+    def _database_path(self):
+        settings = self.P.ModelSetting.to_dict()
+        db_path = settings.get('plex_history_plex_db_path') or ''
+        if not db_path:
+            try:
+                with sqlite3.connect('/data/db/plex_mate.db', timeout=3) as con:
+                    row = con.execute("select value from plex_mate_setting where key='base_path_db'").fetchone()
+                    db_path = row[0] if row else ''
+            except (OSError, sqlite3.Error):
+                db_path = ''
+        if db_path.startswith('/host/') and not os.path.exists(db_path):
+            db_path = db_path[5:]
+        if not db_path or not os.path.isfile(db_path):
+            raise RuntimeError('Plex DB 경로를 찾을 수 없습니다.')
+        return db_path
+
+    @staticmethod
+    def media_type_name(value):
+        return {1: '영화', 2: '음악', 4: '사진', 8: 'TV', 9: '에피소드'}.get(int(value or 0), f'유형 {value}')
+
+    def statistics(self):
+        db_path = self._database_path()
+        query = """SELECT s.account_id, coalesce(a.name, cast(s.account_id as text)),
+                   s.metadata_type, sum(s.count), sum(s.duration), min(s.at), max(s.at), count(*)
+                   FROM statistics_media s LEFT JOIN accounts a ON a.id=s.account_id
+                   GROUP BY s.account_id, s.metadata_type ORDER BY max(s.at) DESC"""
+        with sqlite3.connect(f'file:{db_path}?mode=ro', uri=True, timeout=5) as con:
+            return [{'account_id': row[0], 'account_name': row[1], 'metadata_type': row[2], 'type_name': self.media_type_name(row[2]), 'play_count': row[3] or 0, 'duration': row[4] or 0, 'first_at': row[5], 'last_at': row[6], 'row_count': row[7]} for row in con.execute(query)]
+
+    def _ensure_plex_stopped(self):
+        try:
+            self.client()._request('GET', '/identity')
+        except requests.exceptions.ConnectionError:
+            return
+        except requests.exceptions.RequestException as exc:
+            raise RuntimeError('Plex 상태를 확인할 수 없어 DB 삭제를 중단했습니다.') from exc
+        raise RuntimeError('Plex가 실행 중입니다. Plex를 중지한 뒤 다시 시도하세요.')
+
+    def delete_statistics(self, account_id, metadata_type=''):
+        account_id = self.account_id(account_id)
+        if metadata_type and not str(metadata_type).isdigit():
+            raise ValueError('잘못된 미디어 유형입니다.')
+        self._ensure_plex_stopped()
+        db_path = self._database_path()
+        backup_dir = '/data/db/plex_history_manager_backups'
+        os.makedirs(backup_dir, exist_ok=True)
+        backup_path = os.path.join(backup_dir, f"library-{datetime.now().strftime('%Y%m%d%H%M%S')}.db")
+        shutil.copy2(db_path, backup_path)
+        with sqlite3.connect(db_path, timeout=10) as con:
+            if metadata_type:
+                cur = con.execute('DELETE FROM statistics_media WHERE account_id=? AND metadata_type=?', (account_id, int(metadata_type)))
+            else:
+                cur = con.execute('DELETE FROM statistics_media WHERE account_id=?', (account_id,))
+            con.commit()
+            return cur.rowcount, backup_path
 
     def delete_one(self, account_id, history_id):
         account_id = self.account_id(account_id)

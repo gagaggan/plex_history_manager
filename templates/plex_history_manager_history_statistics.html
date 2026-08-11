@@ -1,0 +1,22 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="container-fluid">
+  <h3>Plex 재생 통계</h3>
+  <p class="text-warning">이 통계는 Plex DB의 <code>statistics_media</code>를 사용합니다. 삭제하려면 Plex를 먼저 중지해야 합니다.</p>
+  <table class="table table-bordered table-hover"><thead><tr><th>사용자</th><th>미디어 유형</th><th>재생 횟수</th><th>재생 시간(초)</th><th>기록 행</th><th>작업</th></tr></thead><tbody>
+  {% for row in rows %}
+  <tr><td>{{ row.account_name }} <small>(ID {{ row.account_id }})</small></td><td>{{ row.type_name }}</td><td>{{ row.play_count }}</td><td>{{ row.duration }}</td><td>{{ row.row_count }}</td><td><form class="statistics-delete-form" method="post" action="/plex_history_manager/ajax/history/command"><input type="hidden" name="command" value="delete_statistics"><input type="hidden" name="arg1" value="{{ row.account_id }}"><input type="hidden" name="arg2" value="{{ row.metadata_type }}"><input type="hidden" name="confirm" value="DELETE_STATISTICS"><button class="btn btn-danger btn-xs">삭제</button></form></td></tr>
+  {% else %}<tr><td colspan="6">재생 통계가 없습니다.</td></tr>{% endfor %}
+  </tbody></table><div id="statistics_action_result"></div>
+</div>
+<script>
+$(document).on('submit', '.statistics-delete-form', function(e) {
+  e.preventDefault(); var form=$(this);
+  if (!window.confirm('이 사용자의 해당 미디어 유형 재생 통계를 삭제할까요?')) return false;
+  $.ajax({url:form.attr('action'), type:'POST', data:form.serialize(), dataType:'json'})
+   .done(function(ret){ $('#statistics_action_result').text(ret.message || '삭제되었습니다.').css('color','green'); setTimeout(function(){ location.reload(); },500); })
+   .fail(function(xhr){ var msg=(xhr.responseJSON && xhr.responseJSON.error) || '삭제에 실패했습니다.'; $('#statistics_action_result').text(msg).css('color','red'); });
+  return false;
+});
+</script>
+{% endblock %}
