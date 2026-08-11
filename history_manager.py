@@ -93,8 +93,10 @@ class HistoryManager:
                 'library_id': library_id,
                 'library_title': '',
                 'count': 0,
+                'episodes': [],
             })
             group['count'] += 1
+            group['episodes'].append(row)
         libraries = self.libraries()
         for group in groups.values():
             group['library_title'] = libraries.get(group['library_id'], '알 수 없는 라이브러리')

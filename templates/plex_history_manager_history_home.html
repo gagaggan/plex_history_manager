@@ -15,18 +15,24 @@
     <button class="btn btn-danger btn-sm">이 사용자 기록 전체 삭제</button>
   </form>
   <h4>프로그램별 시청기록</h4>
-  <table class="table table-bordered table-hover"><thead><tr><th>프로그램</th><th>라이브러리</th><th>에피소드 수</th><th>작업</th></tr></thead><tbody>
   {% for program in programs %}
-  <tr><td>{{ program.title }}</td><td>{{ program.library_title }}</td><td>{{ program.count }}</td><td><form class="history-delete-form" method="post" action="/plex_history_manager/ajax/history/command"><input type="hidden" name="command" value="delete_program"><input type="hidden" name="arg1" value="{{ account_id }}"><input type="hidden" name="arg2" value="{{ program.key }}"><input type="hidden" name="confirm" value="DELETE_PROGRAM"><button class="btn btn-danger btn-xs">프로그램 삭제</button></form></td></tr>
-  {% else %}<tr><td colspan="4">프로그램 기록이 없습니다.</td></tr>{% endfor %}
-  </tbody></table>
+  <details style="margin-bottom:8px; border:1px solid #ddd; padding:8px;">
+    <summary style="cursor:pointer;">
+      <strong>{{ program.title }}</strong>
+      <span class="text-muted"> · {{ program.library_title }} · {{ program.count }}개 에피소드</span>
+      <form class="history-delete-form" method="post" action="/plex_history_manager/ajax/history/command" style="display:inline; float:right; margin-left:8px;">
+        <input type="hidden" name="command" value="delete_program"><input type="hidden" name="arg1" value="{{ account_id }}"><input type="hidden" name="arg2" value="{{ program.key }}"><input type="hidden" name="confirm" value="DELETE_PROGRAM"><button class="btn btn-danger btn-xs" type="submit">프로그램 삭제</button>
+      </form>
+    </summary>
+    <table class="table table-condensed table-hover" style="margin-top:10px;"><thead><tr><th>에피소드</th><th>재생일</th><th>작업</th></tr></thead><tbody>
+    {% for row in program.episodes %}
+      {% set history_id = row.get('historyKey') or row.get('@historyKey') or row.get('id') or row.get('@id') %}
+      <tr><td>{{ row.get('title') or row.get('@title') or '-' }}</td><td>{{ row.get('viewedAt') or row.get('@viewedAt') or '-' }}</td><td><form class="history-delete-form" method="post" action="/plex_history_manager/ajax/history/command"><input type="hidden" name="command" value="delete_one"><input type="hidden" name="arg1" value="{{ account_id }}"><input type="hidden" name="arg2" value="{{ history_id }}"><input type="hidden" name="confirm" value="DELETE"><button class="btn btn-warning btn-xs" type="submit">삭제</button></form></td></tr>
+    {% endfor %}
+    </tbody></table>
+  </details>
+  {% else %}<p>프로그램 기록이 없습니다.</p>{% endfor %}
 
-  <table class="table table-bordered table-hover"><thead><tr><th>제목</th><th>유형</th><th>재생일</th><th>작업</th></tr></thead><tbody>
-  {% for row in rows %}{% set history_id = row.get('historyKey') or row.get('@historyKey') or row.get('id') or row.get('@id') %}
-  <tr><td>{{ row.get('grandparentTitle') or row.get('@grandparentTitle') or '' }}{% if row.get('grandparentTitle') or row.get('@grandparentTitle') %} - {% endif %}{{ row.get('title') or row.get('@title') or '-' }}</td><td>{{ row.get('type') or row.get('@type') or '-' }}</td><td>{{ row.get('viewedAt') or row.get('@viewedAt') or '-' }}</td><td><form class="history-delete-form" method="post" action="/plex_history_manager/ajax/history/command"><input type="hidden" name="command" value="delete_one"><input type="hidden" name="arg1" value="{{ account_id }}"><input type="hidden" name="arg2" value="{{ history_id }}"><input type="hidden" name="confirm" value="DELETE"><button class="btn btn-warning btn-xs">삭제</button></form></td></tr>
-  {% else %}<tr><td colspan="4">기록이 없습니다.</td></tr>{% endfor %}
-  </tbody></table>
-  {% endif %}
   <div id="history_action_result" style="margin-top:12px"></div>
 </div>
 <script>
