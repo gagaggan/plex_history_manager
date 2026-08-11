@@ -1,0 +1,24 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="container-fluid">
+  <h3>Plex 사용자별 시청기록</h3>
+  <p class="text-muted">Plex API의 기록만 삭제하며 라이브러리와 메타데이터는 삭제하지 않습니다.</p>
+  <form method="get" action="/plex_history_manager/history/home" class="form-inline" style="margin-bottom:16px">
+    <select class="form-control" name="account_id" onchange="this.form.submit()">
+      <option value="">사용자를 선택하세요</option>
+      {% for user in users %}<option value="{{ user.account_id }}" {% if account_id|string == user.account_id|string %}selected{% endif %}>{{ user.title }}{% if user.username %} ({{ user.username }}){% endif %}</option>{% endfor %}
+    </select>
+  </form>
+  {% if account_id %}
+  <form method="post" action="/plex_history_manager/ajax/history/command" onsubmit="return confirm('이 사용자의 모든 시청기록을 삭제합니다. 계속할까요?')" style="margin-bottom:16px">
+    <input type="hidden" name="command" value="delete_all"><input type="hidden" name="arg1" value="{{ account_id }}"><input type="hidden" name="confirm" value="DELETE_ALL">
+    <button class="btn btn-danger btn-sm">이 사용자 기록 전체 삭제</button>
+  </form>
+  <table class="table table-bordered table-hover"><thead><tr><th>제목</th><th>유형</th><th>재생일</th><th>작업</th></tr></thead><tbody>
+  {% for row in rows %}{% set history_id = row.get('historyKey') or row.get('@historyKey') or row.get('id') or row.get('@id') %}
+  <tr><td>{{ row.get('grandparentTitle') or row.get('@grandparentTitle') or '' }}{% if row.get('grandparentTitle') or row.get('@grandparentTitle') %} - {% endif %}{{ row.get('title') or row.get('@title') or '-' }}</td><td>{{ row.get('type') or row.get('@type') or '-' }}</td><td>{{ row.get('viewedAt') or row.get('@viewedAt') or '-' }}</td><td><form method="post" action="/plex_history_manager/ajax/history/command" onsubmit="return confirm('이 기록을 삭제할까요?')"><input type="hidden" name="command" value="delete_one"><input type="hidden" name="arg1" value="{{ account_id }}"><input type="hidden" name="arg2" value="{{ history_id }}"><input type="hidden" name="confirm" value="DELETE"><button class="btn btn-warning btn-xs">삭제</button></form></td></tr>
+  {% else %}<tr><td colspan="4">기록이 없습니다.</td></tr>{% endfor %}
+  </tbody></table>
+  {% endif %}
+</div>
+{% endblock %}

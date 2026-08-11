@@ -1,0 +1,5 @@
+setting:
+  name: Plex 시청기록
+  list:
+    - uri: plex_history_manager
+      name: Plex 시청기록

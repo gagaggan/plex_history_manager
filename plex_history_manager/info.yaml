@@ -1,0 +1,13 @@
+title: "Plex 시청기록 관리"
+version: "0.1.0"
+package_name: "plex_history_manager"
+developer: "gagaggan"
+description: "Plex 사용자의 시청기록을 조회하고 선택적으로 삭제합니다."
+home: "https://github.com/gagaggan/plex_history_manager"
+more: "https://raw.githubusercontent.com/gagaggan/plex_history_manager/main/README.md"
+require_plugin:
+require_os: ['Linux']
+require_running_type:
+need_decrypt_code: false
+need_filesize_check: false
+filesize: 0
