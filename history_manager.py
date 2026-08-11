@@ -66,6 +66,42 @@ class HistoryManager:
     def history(self, account_id, start=0, size=100):
         return self.client().history(self.account_id(account_id), int(start), min(int(size), 500))
 
+    @staticmethod
+    def program_key(row: dict) -> str:
+        return str(row.get('grandparentKey') or row.get('@grandparentKey') or row.get('grandparentTitle') or row.get('@grandparentTitle') or row.get('key') or row.get('@key') or row.get('title') or row.get('@title') or '')
+
+    def program_groups(self, account_id, limit=5000):
+        groups = {}
+        for row in self.client().history(self.account_id(account_id), 0, min(int(limit), 5000)):
+            key = self.program_key(row)
+            if not key:
+                continue
+            library_id = str(row.get('librarySectionID') or row.get('@librarySectionID') or '')
+            group = groups.setdefault(key, {
+                'key': key,
+                'title': row.get('grandparentTitle') or row.get('@grandparentTitle') or row.get('title') or row.get('@title') or key,
+                'library_id': library_id,
+                'library_title': '',
+                'count': 0,
+            })
+            group['count'] += 1
+        libraries = self.libraries()
+        for group in groups.values():
+            group['library_title'] = libraries.get(group['library_id'], '알 수 없는 라이브러리')
+        return sorted(groups.values(), key=lambda item: str(item['title']).lower())
+
+    def delete_program(self, account_id, program_key):
+        account_id = self.account_id(account_id)
+        if not program_key:
+            raise ValueError('프로그램 키가 없습니다.')
+        rows = self.client().history(account_id, 0, 5000)
+        targets = [row for row in rows if self.program_key(row) == str(program_key)]
+        for row in targets:
+            value = self.row_history_id(row)
+            if value is not None:
+                self.client().delete_history(value)
+        return len(targets)
+
     def delete_one(self, account_id, history_id):
         account_id = self.account_id(account_id)
         history_id = self.history_id(history_id)

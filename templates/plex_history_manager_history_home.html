@@ -14,6 +14,13 @@
     <input type="hidden" name="command" value="delete_all"><input type="hidden" name="arg1" value="{{ account_id }}"><input type="hidden" name="confirm" value="DELETE_ALL">
     <button class="btn btn-danger btn-sm">이 사용자 기록 전체 삭제</button>
   </form>
+  <h4>프로그램별 시청기록</h4>
+  <table class="table table-bordered table-hover"><thead><tr><th>프로그램</th><th>라이브러리</th><th>에피소드 수</th><th>작업</th></tr></thead><tbody>
+  {% for program in programs %}
+  <tr><td>{{ program.title }}</td><td>{{ program.library_title }}</td><td>{{ program.count }}</td><td><form class="history-delete-form" method="post" action="/plex_history_manager/ajax/history/command"><input type="hidden" name="command" value="delete_program"><input type="hidden" name="arg1" value="{{ account_id }}"><input type="hidden" name="arg2" value="{{ program.key }}"><input type="hidden" name="confirm" value="DELETE_PROGRAM"><button class="btn btn-danger btn-xs">프로그램 삭제</button></form></td></tr>
+  {% else %}<tr><td colspan="4">프로그램 기록이 없습니다.</td></tr>{% endfor %}
+  </tbody></table>
+
   <table class="table table-bordered table-hover"><thead><tr><th>제목</th><th>유형</th><th>재생일</th><th>작업</th></tr></thead><tbody>
   {% for row in rows %}{% set history_id = row.get('historyKey') or row.get('@historyKey') or row.get('id') or row.get('@id') %}
   <tr><td>{{ row.get('grandparentTitle') or row.get('@grandparentTitle') or '' }}{% if row.get('grandparentTitle') or row.get('@grandparentTitle') %} - {% endif %}{{ row.get('title') or row.get('@title') or '-' }}</td><td>{{ row.get('type') or row.get('@type') or '-' }}</td><td>{{ row.get('viewedAt') or row.get('@viewedAt') or '-' }}</td><td><form class="history-delete-form" method="post" action="/plex_history_manager/ajax/history/command"><input type="hidden" name="command" value="delete_one"><input type="hidden" name="arg1" value="{{ account_id }}"><input type="hidden" name="arg2" value="{{ history_id }}"><input type="hidden" name="confirm" value="DELETE"><button class="btn btn-warning btn-xs">삭제</button></form></td></tr>
@@ -27,9 +34,10 @@ $(document).on('submit', '.history-delete-form', function(e) {
   e.preventDefault();
   var form = $(this);
   var data = form.serialize();
-  var confirmText = form.find('input[name="confirm"]').val() === 'DELETE_ALL'
+  var confirmation = form.find('input[name="confirm"]').val();
+  var confirmText = confirmation === 'DELETE_ALL'
     ? '이 사용자의 모든 시청기록을 삭제합니다. 계속할까요?'
-    : '이 시청기록을 삭제할까요?';
+    : (confirmation === 'DELETE_PROGRAM' ? '이 프로그램의 모든 에피소드 기록을 삭제할까요?' : '이 시청기록을 삭제할까요?');
   if (!window.confirm(confirmText)) return false;
   var result = $('#history_action_result');
   result.text('삭제 중...').css('color', '');
