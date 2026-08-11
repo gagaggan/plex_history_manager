@@ -81,6 +81,16 @@ class PlexClient:
             result.append(PlexUser(int(account_id), html.escape(str(title or account_id)), str(username)))
         return sorted(result, key=lambda user: user.title.lower())
 
+    def libraries(self) -> dict[str, str]:
+        response = self._request('GET', '/library/sections')
+        result = {}
+        for item in self._objects(response, 'Directory'):
+            section_id = item.get('key') or item.get('@key') or item.get('id') or item.get('@id')
+            title = item.get('title') or item.get('@title') or section_id
+            if section_id:
+                result[str(section_id)] = str(title)
+        return result
+
     def history(self, account_id: int, start: int = 0, size: int = 100) -> list[dict]:
         response = self._request(
             'GET', '/status/sessions/history/all', accountID=int(account_id),
