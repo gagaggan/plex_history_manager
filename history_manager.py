@@ -68,7 +68,18 @@ class HistoryManager:
             return None
 
     def users(self):
-        return self.client().users()
+        try:
+            return self.client().users()
+        except (requests.RequestException, RuntimeError):
+            # The history page can still use the local Plex DB when Plex API
+            # access is temporarily unavailable.
+            try:
+                db_path = self._database_path()
+                with sqlite3.connect(f'file:{db_path}?mode=ro', uri=True, timeout=5) as con:
+                    rows = con.execute("SELECT id, coalesce(name, username, id) FROM accounts ORDER BY name COLLATE NOCASE").fetchall()
+                return [type('PlexUserFallback', (), {'account_id': row[0], 'title': str(row[1]), 'username': ''}) for row in rows]
+            except (OSError, sqlite3.Error, RuntimeError):
+                return []
 
     def history(self, account_id, start=0, size=100):
         rows = self.client().history(self.account_id(account_id), int(start), min(int(size), 500))
@@ -92,6 +103,44 @@ class HistoryManager:
     @staticmethod
     def program_key(row: dict) -> str:
         return str(row.get('grandparentKey') or row.get('@grandparentKey') or row.get('grandparentTitle') or row.get('@grandparentTitle') or row.get('key') or row.get('@key') or row.get('title') or row.get('@title') or '')
+
+    @staticmethod
+    def history_type(row):
+        value = row.get('type') or row.get('@type') or row.get('metadataType') or row.get('@metadataType') or ''
+        names = {'movie': 1, 'music': 2, 'track': 2, 'photo': 4, 'show': 8, 'episode': 9}
+        if str(value).isdigit():
+            return int(value)
+        return names.get(str(value).lower(), 0)
+
+    def history_tree(self, account_id, limit=5000):
+        types = {}
+        libraries = self.libraries()
+        for row in self.client().history(self.account_id(account_id), 0, min(int(limit), 5000)):
+            type_id = self.history_type(row)
+            type_node = types.setdefault(type_id, {
+                'metadata_type': type_id,
+                'type_name': self.media_type_name(type_id) if type_id else '기타',
+                'libraries': [],
+            })
+            library_id = str(row.get('librarySectionID') or row.get('@librarySectionID') or '')
+            library_name = libraries.get(library_id, '알 수 없는 라이브러리')
+            library = next((item for item in type_node['libraries'] if item['name'] == library_name), None)
+            if library is None:
+                library = {'name': library_name, 'programs': []}
+                type_node['libraries'].append(library)
+            program_key = self.program_key(row)
+            program_title = row.get('grandparentTitle') or row.get('@grandparentTitle') or row.get('title') or row.get('@title') or program_key
+            program = next((item for item in library['programs'] if item['key'] == program_key), None)
+            if program is None:
+                program = {'key': program_key, 'title': program_title, 'episodes': []}
+                library['programs'].append(program)
+            row['_viewed_at_display'] = self.format_timestamp(row.get('viewedAt') or row.get('@viewedAt'))
+            program['episodes'].append(row)
+        for type_node in types.values():
+            type_node['libraries'].sort(key=lambda item: item['name'].lower())
+            for library in type_node['libraries']:
+                library['programs'].sort(key=lambda item: item['title'].lower())
+        return sorted(types.values(), key=lambda item: item['type_name'])
 
     def program_groups(self, account_id, limit=5000):
         groups = {}

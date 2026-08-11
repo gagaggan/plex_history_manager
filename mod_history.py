@@ -19,18 +19,18 @@ class ModuleHistory(PluginModuleBase):
             if page == 'setting':
                 return render_template(f'{__package__}_{name}_setting.html', arg=self.P.ModelSetting.to_dict())
             account_id = req.args.get('account_id', '')
-            users = self.P.history_manager.users()
             if page == 'statistics':
                 tree = self.P.history_manager.statistics_tree()
                 return render_template(f'{__package__}_{name}_statistics.html', rows=tree['aggregates'], types=tree['types'], plex_status=self.P.history_manager.plex_container_status())
+            users = self.P.history_manager.users()
             settings = self.P.ModelSetting.to_dict()
             try:
                 page_size = max(10, min(int(settings.get('plex_history_page_size') or 100), 500))
             except (TypeError, ValueError):
                 page_size = 100
             rows = self.P.history_manager.history(account_id, 0, page_size) if account_id else []
-            programs = self.P.history_manager.program_groups(account_id) if account_id else []
-            return render_template(f'{__package__}_{name}_home.html', users=users, rows=rows, programs=programs, account_id=account_id)
+            history_types = self.P.history_manager.history_tree(account_id) if account_id else []
+            return render_template(f'{__package__}_{name}_home.html', users=users, rows=rows, history_types=history_types, account_id=account_id)
         except Exception as e:
             self.P.logger.error(f'Exception:{str(e)}')
             self.P.logger.error(traceback.format_exc())

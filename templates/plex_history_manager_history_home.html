@@ -2,7 +2,7 @@
 {% block content %}
 <div class="container-fluid">
   <h3>Plex 사용자별 시청기록</h3>
-  <p class="text-muted">Plex API의 기록만 삭제하며 라이브러리와 메타데이터는 삭제하지 않습니다.</p>
+  <p class="text-muted">미디어 유형 → 라이브러리 → 프로그램/에피소드 순서로 표시합니다.</p>
   <form method="get" action="/plex_history_manager/history/home" class="form-inline" style="margin-bottom:16px">
     <select class="form-control" name="account_id" onchange="this.form.submit()">
       <option value="">사용자를 선택하세요</option>
@@ -14,49 +14,42 @@
     <input type="hidden" name="command" value="delete_all"><input type="hidden" name="arg1" value="{{ account_id }}"><input type="hidden" name="confirm" value="DELETE_ALL">
     <button class="btn btn-danger btn-sm">이 사용자 기록 전체 삭제</button>
   </form>
-  <h4>프로그램별 시청기록</h4>
-  {% for program in programs %}
-  <details style="margin-bottom:8px; border:1px solid #ddd; padding:8px;">
-    <summary style="cursor:pointer;">
-      <strong>{{ program.title }}</strong>
-      <span class="text-muted"> · {{ program.library_title }} · {{ program.count }}개 에피소드</span>
-      <form class="history-delete-form" method="post" action="/plex_history_manager/ajax/history/command" style="display:inline; float:right; margin-left:8px;">
-        <input type="hidden" name="command" value="delete_program"><input type="hidden" name="arg1" value="{{ account_id }}"><input type="hidden" name="arg2" value="{{ program.key }}"><input type="hidden" name="confirm" value="DELETE_PROGRAM"><button class="btn btn-danger btn-xs" type="submit">프로그램 삭제</button>
-      </form>
-    </summary>
-    <table class="table table-condensed table-hover" style="margin-top:10px;"><thead><tr><th>에피소드</th><th>재생일</th><th>작업</th></tr></thead><tbody>
-    {% for row in program.episodes %}
-      {% set history_id = row.get('historyKey') or row.get('@historyKey') or row.get('id') or row.get('@id') %}
-      <tr><td>{{ row.get('title') or row.get('@title') or '-' }}</td><td>{{ row.get('_viewed_at_display') or '-' }}</td><td><form class="history-delete-form" method="post" action="/plex_history_manager/ajax/history/command"><input type="hidden" name="command" value="delete_one"><input type="hidden" name="arg1" value="{{ account_id }}"><input type="hidden" name="arg2" value="{{ history_id }}"><input type="hidden" name="confirm" value="DELETE"><button class="btn btn-warning btn-xs" type="submit">삭제</button></form></td></tr>
+  {% for type in history_types %}
+  <details style="margin-bottom:10px; border:1px solid #ddd; padding:8px;">
+    <summary style="cursor:pointer;"><strong>{{ type.type_name }}</strong> <span class="text-muted">({{ type.libraries|length }}개 라이브러리)</span></summary>
+    {% for library in type.libraries %}
+    <details style="margin:8px 0 8px 16px; border:1px solid #eee; padding:8px;">
+      <summary style="cursor:pointer;"><strong>{{ library.name }}</strong> <span class="text-muted">({{ library.programs|length }}개 프로그램)</span></summary>
+      {% for program in library.programs %}
+      <details style="margin:8px 0 8px 16px; border:1px solid #f0f0f0; padding:8px;">
+        <summary style="cursor:pointer;">
+          <strong>{{ program.title }}</strong> <span class="text-muted">({{ program.episodes|length }}개)</span>
+          <form class="history-delete-form" method="post" action="/plex_history_manager/ajax/history/command" style="display:inline; float:right; margin-left:8px;">
+            <input type="hidden" name="command" value="delete_program"><input type="hidden" name="arg1" value="{{ account_id }}"><input type="hidden" name="arg2" value="{{ program.key }}"><input type="hidden" name="confirm" value="DELETE_PROGRAM"><button class="btn btn-danger btn-xs" type="submit">프로그램 삭제</button>
+          </form>
+        </summary>
+        <table class="table table-condensed table-hover" style="margin-top:10px;"><thead><tr><th>에피소드/항목</th><th>재생일</th><th>작업</th></tr></thead><tbody>
+        {% for row in program.episodes %}
+          {% set history_id = row.get('historyKey') or row.get('@historyKey') or row.get('id') or row.get('@id') %}
+          <tr><td>{{ row.get('title') or row.get('@title') or '-' }}</td><td>{{ row.get('_viewed_at_display') or '-' }}</td><td><form class="history-delete-form" method="post" action="/plex_history_manager/ajax/history/command"><input type="hidden" name="command" value="delete_one"><input type="hidden" name="arg1" value="{{ account_id }}"><input type="hidden" name="arg2" value="{{ history_id }}"><input type="hidden" name="confirm" value="DELETE"><button class="btn btn-warning btn-xs" type="submit">삭제</button></form></td></tr>
+        {% endfor %}
+        </tbody></table>
+      </details>
+      {% endfor %}
+    </details>
     {% endfor %}
-    </tbody></table>
   </details>
-  {% else %}<p>프로그램 기록이 없습니다.</p>{% endfor %}
-  {% endif %}
-
+  {% else %}<p>선택한 사용자의 시청기록이 없습니다.</p>{% endfor %}
+  {% else %}<p>사용자를 선택하세요.</p>{% endif %}
   <div id="history_action_result" style="margin-top:12px"></div>
 </div>
 <script>
 $(document).on('submit', '.history-delete-form', function(e) {
-  e.preventDefault();
-  var form = $(this);
-  var data = form.serialize();
-  var confirmation = form.find('input[name="confirm"]').val();
-  var confirmText = confirmation === 'DELETE_ALL'
-    ? '이 사용자의 모든 시청기록을 삭제합니다. 계속할까요?'
-    : (confirmation === 'DELETE_PROGRAM' ? '이 프로그램의 모든 에피소드 기록을 삭제할까요?' : '이 시청기록을 삭제할까요?');
-  if (!window.confirm(confirmText)) return false;
-  var result = $('#history_action_result');
-  result.text('삭제 중...').css('color', '');
-  $.ajax({url: form.attr('action'), type: 'POST', data: data, dataType: 'json'})
-    .done(function(ret) {
-      result.text(ret.message || '삭제되었습니다.').css('color', 'green');
-      setTimeout(function() { window.location.reload(); }, 500);
-    })
-    .fail(function(xhr) {
-      var msg = (xhr.responseJSON && (xhr.responseJSON.error || xhr.responseJSON.message)) || '삭제에 실패했습니다.';
-      result.text(msg).css('color', 'red');
-    });
+  e.preventDefault(); var form=$(this), confirmation=form.find('input[name="confirm"]').val();
+  var msg=confirmation==='DELETE_ALL'?'이 사용자의 모든 시청기록을 삭제합니다. 계속할까요?':(confirmation==='DELETE_PROGRAM'?'이 프로그램의 모든 에피소드 기록을 삭제할까요?':'이 시청기록을 삭제할까요?');
+  if (!window.confirm(msg)) return false;
+  var result=$('#history_action_result'); result.text('삭제 중...');
+  $.ajax({url:form.attr('action'),type:'POST',data:form.serialize(),dataType:'json'}).done(function(ret){result.text(ret.message||'삭제되었습니다.').css('color','green');setTimeout(function(){location.reload();},500);}).fail(function(xhr){var msg=(xhr.responseJSON&&(xhr.responseJSON.error||xhr.responseJSON.message))||'삭제에 실패했습니다.';result.text(msg).css('color','red');});
   return false;
 });
 </script>

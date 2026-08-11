@@ -44,7 +44,10 @@ class PlexClient:
             if isinstance(data, dict) and isinstance(data.get('MediaContainer'), dict):
                 data = data['MediaContainer']
             value = data.get(key, []) if isinstance(data, dict) else []
-            if not value and key in ('Video', 'Track') and isinstance(data, dict):
+            # Some Plex endpoints return a generic Metadata array. Only use
+            # it as the Video fallback; otherwise Video and Track parsing can
+            # append the same Metadata rows twice.
+            if not value and key == 'Video' and isinstance(data, dict):
                 value = data.get('Metadata', [])
             return value if isinstance(value, list) else [value]
         except ValueError:
@@ -96,7 +99,21 @@ class PlexClient:
             'GET', '/status/sessions/history/all', accountID=int(account_id),
             sort='viewedAt:desc', **{'X-Plex-Container-Start': start, 'X-Plex-Container-Size': size},
         )
-        return self._objects(response, 'Video') + self._objects(response, 'Track')
+        rows = self._objects(response, 'Video') + self._objects(response, 'Track')
+        unique = []
+        seen = set()
+        for row in rows:
+            identity = (
+                row.get('historyKey') or row.get('@historyKey') or
+                row.get('id') or row.get('@id') or
+                row.get('key') or row.get('@key') or
+                (row.get('guid') or row.get('@guid'), row.get('viewedAt') or row.get('@viewedAt'))
+            )
+            if identity in seen:
+                continue
+            seen.add(identity)
+            unique.append(row)
+        return unique
 
     def delete_history(self, history_id: int) -> None:
         self._request('DELETE', f'/status/sessions/history/{int(history_id)}')
