@@ -51,6 +51,11 @@ class ModuleHistory(PluginModuleBase):
 
     def process_command(self, command, arg1, arg2, arg3, req):
         try:
+            if command == 'delete_guid':
+                if req.form.get('confirm') != 'DELETE_GUID':
+                    return jsonify({'ok': False, 'error': '항목 삭제 확인 문구가 올바르지 않습니다.'}), 400
+                deleted = self.P.history_manager.delete_guid(arg1, arg2)
+                return jsonify({'ok': True, 'message': f'시청기록 {deleted["views"]}건과 시청상태 {deleted["settings"]}건을 삭제했습니다.'})
             if command == 'delete_one':
                 if req.form.get('confirm') != 'DELETE':
                     return jsonify({'ok': False, 'error': '확인 문구가 올바르지 않습니다.'}), 400

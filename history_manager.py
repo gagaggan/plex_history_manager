@@ -107,15 +107,51 @@ class HistoryManager:
     @staticmethod
     def history_type(row):
         value = row.get('type') or row.get('@type') or row.get('metadataType') or row.get('@metadataType') or ''
-        names = {'movie': 1, 'music': 2, 'track': 2, 'photo': 12, 'show': 8, 'episode': 4}
+        names = {'movie': 1, 'music': 2, 'track': 2, 'photo': 12, 'show': 2, 'episode': 4}
         if str(value).isdigit():
             return int(value)
         return names.get(str(value).lower(), 0)
 
     def history_tree(self, account_id, limit=5000):
+        account_id = self.account_id(account_id)
         types = {}
         libraries = self.libraries()
-        for row in self.client().history(self.account_id(account_id), 0, min(int(limit), 5000)):
+        rows = self.client().history(account_id, 0, min(int(limit), 5000))
+        seen_guids = {str(row.get('guid') or row.get('@guid') or '') for row in rows}
+        # Imported or old Plex databases can retain watch state in
+        # metadata_item_settings even when the history API no longer returns it.
+        try:
+            db_path = self._database_path()
+            query = """SELECT s.guid, s.view_count, s.view_offset, s.last_viewed_at,
+                              mi.metadata_type, mi.library_section_id, mi.title,
+                              parent.title, grand.title
+                       FROM metadata_item_settings s
+                       LEFT JOIN metadata_items mi ON mi.guid=s.guid
+                       LEFT JOIN metadata_items parent ON parent.id=mi.parent_id
+                       LEFT JOIN metadata_items grand ON grand.id=parent.parent_id
+                       WHERE s.account_id=?
+                         AND (coalesce(s.view_count, 0)>0 OR coalesce(s.view_offset, 0)>0
+                              OR s.last_viewed_at IS NOT NULL)"""
+            with sqlite3.connect(f'file:{db_path}?mode=ro', uri=True, timeout=5) as con:
+                for guid, view_count, view_offset, last_viewed_at, metadata_type, library_id, title, parent_title, grand_title in con.execute(query, (account_id,)):
+                    guid = str(guid or '')
+                    if not guid or guid in seen_guids:
+                        continue
+                    seen_guids.add(guid)
+                    rows.append({
+                        'guid': guid, 'type': metadata_type or 0,
+                        'librarySectionID': library_id or '',
+                        'grandparentTitle': grand_title or parent_title or title or '',
+                        'parentTitle': parent_title or '',
+                        'title': title or '',
+                        'viewedAt': last_viewed_at or '',
+                        '_settings_only': True,
+                        '_settings_view_count': view_count or 0,
+                        '_settings_view_offset': view_offset or 0,
+                    })
+        except (OSError, sqlite3.Error, RuntimeError):
+            pass
+        for row in rows:
             type_id = self.history_type(row)
             type_node = types.setdefault(type_id, {
                 'metadata_type': type_id,
@@ -241,7 +277,7 @@ class HistoryManager:
 
     @staticmethod
     def media_type_name(value):
-        return {1: '영화', 2: '음악', 4: 'TV', 8: 'TV', 9: '에피소드', 12: '기타'}.get(int(value or 0), f'유형 {value}')
+        return {1: '영화', 2: 'TV', 3: 'TV', 4: 'TV', 8: 'TV', 9: '에피소드', 12: '기타'}.get(int(value or 0), f'유형 {value}')
 
     def statistics(self):
         db_path = self._database_path()
@@ -375,6 +411,13 @@ class HistoryManager:
         if not targets:
             raise ValueError("선택한 사용자의 기록이 아니거나 이미 삭제되었습니다.")
         return self._delete_history_rows(account_id, targets)
+
+    def delete_guid(self, account_id, guid):
+        account_id = self.account_id(account_id)
+        guid = str(guid or '').strip()
+        if not guid:
+            raise ValueError('잘못된 항목 GUID입니다.')
+        return self._delete_history_rows(account_id, [{'guid': guid}])
 
     def delete_user_data(self, account_id):
         """Delete all playback-related data for one user with a backup."""
