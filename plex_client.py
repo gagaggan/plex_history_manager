@@ -104,11 +104,12 @@ class PlexClient:
         unique = []
         seen = set()
         for row in rows:
+            guid = row.get('guid') or row.get('@guid')
+            viewed_at = row.get('viewedAt') or row.get('@viewedAt')
             identity = (
-                row.get('historyKey') or row.get('@historyKey') or
-                row.get('id') or row.get('@id') or
-                row.get('key') or row.get('@key') or
-                (row.get('guid') or row.get('@guid'), row.get('viewedAt') or row.get('@viewedAt'))
+                ('guid', guid, viewed_at) if guid else
+                ('history', row.get('historyKey') or row.get('@historyKey') or
+                 row.get('id') or row.get('@id') or row.get('key') or row.get('@key'))
             )
             if identity in seen:
                 continue

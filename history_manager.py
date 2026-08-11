@@ -138,7 +138,10 @@ class HistoryManager:
         account_id = self.account_id(account_id)
         types = {}
         libraries = self.libraries()
-        rows = self.client().history(account_id, 0, min(int(limit), 5000))
+        try:
+            rows = self.client().history(account_id, 0, min(int(limit), 5000))
+        except requests.RequestException:
+            rows = []
         seen_guids = {str(row.get('guid') or row.get('@guid') or '') for row in rows}
         # Imported or old Plex databases can retain watch state in
         # metadata_item_settings even when the history API no longer returns it.
@@ -173,7 +176,20 @@ class HistoryManager:
                     })
         except (OSError, sqlite3.Error, RuntimeError):
             pass
+        display_seen = set()
         for row in rows:
+            library_id = str(row.get('librarySectionID') or row.get('@librarySectionID') or '')
+            display_identity = (
+                library_id,
+                self.history_type(row),
+                row.get('grandparentTitle') or row.get('@grandparentTitle') or '',
+                row.get('parentTitle') or row.get('@parentTitle') or '',
+                row.get('title') or row.get('@title') or '',
+                row.get('viewedAt') or row.get('@viewedAt') or '',
+            )
+            if display_identity in display_seen:
+                continue
+            display_seen.add(display_identity)
             type_id = self.history_type(row)
             type_node = types.setdefault(type_id, {
                 'metadata_type': type_id,

@@ -41,7 +41,6 @@ class ModuleHistory(PluginModuleBase):
                 page_size = max(10, min(int(settings.get('plex_history_page_size') or 100), 500))
             except (TypeError, ValueError):
                 page_size = 100
-            rows = self.P.history_manager.history(account_id, 0, page_size) if account_id else []
             history_types = self.P.history_manager.history_tree(account_id) if account_id else []
             return render_template(f'{__package__}_{name}_home.html', users=users, rows=rows, history_types=history_types, account_id=account_id)
         except Exception as e:
