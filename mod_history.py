@@ -54,8 +54,8 @@ class ModuleHistory(PluginModuleBase):
             if command == 'delete_one':
                 if req.form.get('confirm') != 'DELETE':
                     return jsonify({'ok': False, 'error': '확인 문구가 올바르지 않습니다.'}), 400
-                self.P.history_manager.delete_one(arg1, arg2)
-                return jsonify({'ok': True, 'message': '시청기록을 삭제했습니다.'})
+                deleted = self.P.history_manager.delete_one(arg1, arg2)
+                return jsonify({'ok': True, 'message': f'시청기록 {deleted["views"]}건과 시청상태 {deleted["settings"]}건을 삭제했습니다.'})
             if command == 'plex_start':
                 return jsonify({'ok': True, 'data': self.P.history_manager.plex_container_action('start')})
             if command == 'plex_stop':
@@ -68,8 +68,8 @@ class ModuleHistory(PluginModuleBase):
             if command == 'delete_program':
                 if req.form.get('confirm') != 'DELETE_PROGRAM':
                     return jsonify({'ok': False, 'error': '프로그램 삭제 확인 문구가 올바르지 않습니다.'}), 400
-                count = self.P.history_manager.delete_program(arg1, arg2)
-                return jsonify({'ok': True, 'message': f'프로그램 시청기록 {count}건을 삭제했습니다.'})
+                deleted = self.P.history_manager.delete_program(arg1, arg2)
+                return jsonify({'ok': True, 'message': f'프로그램 시청기록 {deleted["views"]}건과 시청상태 {deleted["settings"]}건을 삭제했습니다.'})
             if command == 'delete_all':
                 if req.form.get('confirm') != 'DELETE_ALL':
                     return jsonify({'ok': False, 'error': '전체 삭제 확인 문구가 올바르지 않습니다.'}), 400

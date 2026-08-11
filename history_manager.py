@@ -172,23 +172,56 @@ class HistoryManager:
         rows = self.client().history(account_id, 0, 5000)
         targets = [row for row in rows if self.program_key(row) == str(program_key)]
         if not targets:
-            return 0
+            return {'views': 0, 'settings': 0, 'backup': ''}
+        return self._delete_history_rows(account_id, targets)
+
+    def _delete_history_rows(self, account_id, targets):
+        """Delete selected history rows and matching watch settings by GUID."""
         self._ensure_plex_stopped()
         db_path = self._database_path()
         backup_dir = '/data/db/plex_history_manager_backups'
         os.makedirs(backup_dir, exist_ok=True)
-        backup_path = os.path.join(backup_dir, f"library-{datetime.now().strftime('%Y%m%d%H%M%S')}.db")
+        backup_path = os.path.join(
+            backup_dir,
+            f"library-partial-{account_id}-{datetime.now().strftime('%Y%m%d%H%M%S')}.db",
+        )
         shutil.copy2(db_path, backup_path)
-        titles = {str(row.get('grandparentTitle') or row.get('@grandparentTitle') or row.get('title') or row.get('@title') or '') for row in targets}
-        titles.discard('')
+        guids = {
+            str(row.get('guid') or row.get('@guid') or '')
+            for row in targets
+        }
+        guids.discard('')
+        history_ids = {
+            self.row_history_id(row)
+            for row in targets
+        }
+        history_ids.discard(None)
         with sqlite3.connect(db_path, timeout=10) as con:
-            placeholders = ','.join('?' for _ in titles)
-            cur = con.execute(
-                f"DELETE FROM metadata_item_views WHERE account_id=? AND grandparent_title IN ({placeholders})",
-                (account_id, *sorted(titles)),
-            ) if titles else None
+            view_count = 0
+            settings_count = 0
+            if guids:
+                placeholders = ','.join('?' for _ in guids)
+                cur = con.execute(
+                    f'DELETE FROM metadata_item_settings WHERE account_id=? AND guid IN ({placeholders})',
+                    (account_id, *sorted(guids)),
+                )
+                settings_count = cur.rowcount
+                cur = con.execute(
+                    f'DELETE FROM metadata_item_views WHERE account_id=? AND guid IN ({placeholders})',
+                    (account_id, *sorted(guids)),
+                )
+                view_count = cur.rowcount
+            # Some Plex API rows expose only a history id. Remove those view
+            # rows as a fallback when the id maps to the local row id.
+            if history_ids and not guids:
+                placeholders = ','.join('?' for _ in history_ids)
+                cur = con.execute(
+                    f'DELETE FROM metadata_item_views WHERE account_id=? AND id IN ({placeholders})',
+                    (account_id, *sorted(history_ids)),
+                )
+                view_count = cur.rowcount
             con.commit()
-            return cur.rowcount if cur else 0
+        return {'views': view_count, 'settings': settings_count, 'backup': backup_path}
 
     def _database_path(self):
         settings = self.P.ModelSetting.to_dict()
@@ -337,10 +370,11 @@ class HistoryManager:
     def delete_one(self, account_id, history_id):
         account_id = self.account_id(account_id)
         history_id = self.history_id(history_id)
-        rows = self.history(account_id, 0, 500)
-        if not any(self.row_history_id(row) == history_id for row in rows):
+        rows = self.client().history(account_id, 0, 5000)
+        targets = [row for row in rows if self.row_history_id(row) == history_id]
+        if not targets:
             raise ValueError("선택한 사용자의 기록이 아니거나 이미 삭제되었습니다.")
-        self.client().delete_history(history_id)
+        return self._delete_history_rows(account_id, targets)
 
     def delete_user_data(self, account_id):
         """Delete all playback-related data for one user with a backup."""
