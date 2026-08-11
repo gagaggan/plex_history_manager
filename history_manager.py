@@ -28,8 +28,8 @@ class HistoryManager:
             return "", ""
 
     def client(self) -> PlexClient:
-        url = (self.P.ModelSetting.get("plex_history_plex_url", "") or "").strip()
-        token = (self.P.ModelSetting.get("plex_history_plex_token", "") or "").strip()
+        url = (self.P.ModelSetting.get("plex_history_plex_url") or "").strip()
+        token = (self.P.ModelSetting.get("plex_history_plex_token") or "").strip()
         if not url or not token:
             url, token = self._plex_mate_settings()
         if not url or not token:
