@@ -73,8 +73,9 @@ class ModuleHistory(PluginModuleBase):
             if command == 'delete_all':
                 if req.form.get('confirm') != 'DELETE_ALL':
                     return jsonify({'ok': False, 'error': '전체 삭제 확인 문구가 올바르지 않습니다.'}), 400
-                count = self.P.history_manager.delete_all(arg1)
-                return jsonify({'ok': True, 'message': f'{count}건을 삭제했습니다.'})
+                deleted, backup = self.P.history_manager.delete_all(arg1)
+                total = sum(deleted.values())
+                return jsonify({'ok': True, 'message': f'사용자 데이터 {total}건을 삭제했습니다. (시청기록 {deleted.get("metadata_item_views", 0)}건, 시청상태 {deleted.get("metadata_item_settings", 0)}건, 재생통계 {deleted.get("statistics_media", 0)}건) 백업: {backup}'})
             return jsonify({'ok': False, 'error': 'unknown command'}), 400
         except Exception as e:
             self.P.logger.error(traceback.format_exc())

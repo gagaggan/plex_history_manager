@@ -342,21 +342,27 @@ class HistoryManager:
             raise ValueError("선택한 사용자의 기록이 아니거나 이미 삭제되었습니다.")
         self.client().delete_history(history_id)
 
-    def delete_all(self, account_id):
+    def delete_user_data(self, account_id):
+        """Delete all playback-related data for one user with a backup."""
         account_id = self.account_id(account_id)
-        client = self.client()
-        deleted = 0
-        while True:
-            rows = client.history(account_id, 0, 500)
-            if not rows:
-                break
-            ids = [self.row_history_id(row) for row in rows]
-            ids = [value for value in ids if value is not None]
-            for value in ids:
-                client.delete_history(value)
-                deleted += 1
-            if len(ids) == 0:
-                break
-            if len(rows) < 500:
-                break
-        return deleted
+        self._ensure_plex_stopped()
+        db_path = self._database_path()
+        backup_dir = '/data/db/plex_history_manager_backups'
+        os.makedirs(backup_dir, exist_ok=True)
+        backup_path = os.path.join(
+            backup_dir,
+            f"library-user-{account_id}-{datetime.now().strftime('%Y%m%d%H%M%S')}.db",
+        )
+        shutil.copy2(db_path, backup_path)
+        deleted = {}
+        with sqlite3.connect(db_path, timeout=10) as con:
+            for table in ('metadata_item_views', 'metadata_item_settings', 'statistics_media'):
+                cur = con.execute(f'DELETE FROM {table} WHERE account_id=?', (account_id,))
+                deleted[table] = cur.rowcount
+            con.commit()
+        return deleted, backup_path
+
+    def delete_all(self, account_id):
+        # Keep the existing command name used by the history page.
+        deleted, backup_path = self.delete_user_data(account_id)
+        return sum(deleted.values()), backup_path
