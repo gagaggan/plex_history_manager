@@ -20,7 +20,7 @@
     <details style="margin:8px 0 8px 16px; border:1px solid #eee; padding:8px;">
       <summary style="cursor:pointer;"><strong>{{ library.name }}</strong> <span class="text-muted">({{ library.count }}건)</span></summary>
       <table class="table table-condensed table-hover" style="margin:8px 0 0 16px;"><thead><tr><th>사용자</th><th>프로그램</th><th>에피소드/항목</th><th>횟수</th><th>최근 시청</th></tr></thead><tbody>
-      {% for item in library.items %}<tr><td>{{ item.account_name }}</td><td>{{ item.program }}</td><td>{{ item.title }}</td><td>{{ item.count }}</td><td>{{ item.last_at }}</td></tr>{% endfor %}
+      {% for item in library['items'] %}<tr><td>{{ item.account_name }}</td><td>{{ item.program }}</td><td>{{ item.title }}</td><td>{{ item.count }}</td><td>{{ item.last_at }}</td></tr>{% endfor %}
       </tbody></table>
     </details>
     {% endfor %}

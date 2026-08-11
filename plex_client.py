@@ -70,8 +70,9 @@ class PlexClient:
             history_rows = self._objects(history_response, 'Video') + self._objects(history_response, 'Track')
             active_ids = {str(row.get('accountID') or row.get('@accountID')) for row in history_rows}
             filtered = [item for item in accounts if str(item.get('id') or item.get('@id')) in active_ids]
-            if filtered:
-                accounts = filtered
+            # An empty history means there are no users to show, not that all
+            # Plex accounts should be exposed in the history screen.
+            accounts = filtered
         except requests.RequestException:
             pass
         result = []
