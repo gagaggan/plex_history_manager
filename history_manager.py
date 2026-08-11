@@ -69,17 +69,39 @@ class HistoryManager:
 
     def users(self):
         try:
-            return self.client().users()
+            users = self.client().users()
+            if users:
+                return users
         except (requests.RequestException, RuntimeError):
-            # The history page can still use the local Plex DB when Plex API
-            # access is temporarily unavailable.
-            try:
-                db_path = self._database_path()
-                with sqlite3.connect(f'file:{db_path}?mode=ro', uri=True, timeout=5) as con:
-                    rows = con.execute("SELECT id, coalesce(name, username, id) FROM accounts ORDER BY name COLLATE NOCASE").fetchall()
-                return [type('PlexUserFallback', (), {'account_id': row[0], 'title': str(row[1]), 'username': ''}) for row in rows]
-            except (OSError, sqlite3.Error, RuntimeError):
-                return []
+            pass
+        # The API may return no history after a bulk cleanup even though the
+        # local imported database still contains views or watch settings.
+        try:
+            db_path = self._database_path()
+            query = """SELECT a.id, coalesce(a.name, a.username, cast(a.id as text))
+                       FROM accounts a
+                       WHERE EXISTS (
+                           SELECT 1 FROM metadata_item_views v
+                           WHERE v.account_id=a.id
+                       )
+                       OR EXISTS (
+                           SELECT 1 FROM metadata_item_settings s
+                           WHERE s.account_id=a.id
+                             AND (coalesce(s.view_count, 0)>0
+                                  OR coalesce(s.view_offset, 0)>0
+                                  OR s.last_viewed_at IS NOT NULL)
+                       )
+                       ORDER BY coalesce(a.name, a.username, cast(a.id as text)) COLLATE NOCASE"""
+            with sqlite3.connect(f'file:{db_path}?mode=ro', uri=True, timeout=5) as con:
+                rows = con.execute(query).fetchall()
+            return [
+                type('PlexUserFallback', (), {
+                    'account_id': row[0], 'title': str(row[1]), 'username': ''
+                })
+                for row in rows
+            ]
+        except (OSError, sqlite3.Error, RuntimeError):
+            return []
 
     def history(self, account_id, start=0, size=100):
         rows = self.client().history(self.account_id(account_id), int(start), min(int(size), 500))
