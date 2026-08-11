@@ -6,11 +6,27 @@
   <p>Plex 상태: <strong>{{ plex_status.status }}</strong> {% if plex_status.running %}<span class="text-success">실행 중</span>{% endif %}</p>
   <form class="plex-control-form" method="post" action="/plex_history_manager/ajax/history/command" style="display:inline"><input type="hidden" name="command" value="plex_stop"><button class="btn btn-warning btn-sm">Plex 중지</button></form>
   <form class="plex-control-form" method="post" action="/plex_history_manager/ajax/history/command" style="display:inline"><input type="hidden" name="command" value="plex_start"><button class="btn btn-success btn-sm">Plex 시작</button></form>
-  <table class="table table-bordered table-hover"><thead><tr><th>사용자</th><th>미디어 유형</th><th>재생 횟수</th><th>재생 시간(초)</th><th>기록 행</th><th>작업</th></tr></thead><tbody>
+  <table class="table table-bordered table-hover"><thead><tr><th>사용자</th><th>미디어 유형</th><th>재생 횟수</th><th>재생 시간(초)</th><th>최근 재생</th><th>작업</th></tr></thead><tbody>
   {% for row in rows %}
-  <tr><td>{{ row.account_name }} <small>(ID {{ row.account_id }})</small></td><td>{{ row.type_name }}</td><td>{{ row.play_count }}</td><td>{{ row.duration }}</td><td>{{ row.row_count }}</td><td><form class="statistics-delete-form" method="post" action="/plex_history_manager/ajax/history/command"><input type="hidden" name="command" value="delete_statistics"><input type="hidden" name="arg1" value="{{ row.account_id }}"><input type="hidden" name="arg2" value="{{ row.metadata_type }}"><input type="hidden" name="confirm" value="DELETE_STATISTICS"><button class="btn btn-danger btn-xs">삭제</button></form></td></tr>
+  <tr><td>{{ row.account_name }} <small>(ID {{ row.account_id }})</small></td><td>{{ row.type_name }}</td><td>{{ row.play_count }}</td><td>{{ row.duration }}</td><td>{{ row.last_at }}</td><td><form class="statistics-delete-form" method="post" action="/plex_history_manager/ajax/history/command"><input type="hidden" name="command" value="delete_statistics"><input type="hidden" name="arg1" value="{{ row.account_id }}"><input type="hidden" name="arg2" value="{{ row.metadata_type }}"><input type="hidden" name="confirm" value="DELETE_STATISTICS"><button class="btn btn-danger btn-xs">삭제</button></form></td></tr>
   {% else %}<tr><td colspan="6">재생 통계가 없습니다.</td></tr>{% endfor %}
-  </tbody></table><div id="statistics_action_result"></div>
+  </tbody></table>
+  <h4 style="margin-top:24px;">상세 기록: 미디어 유형 → 라이브러리 → 프로그램/에피소드</h4>
+  <p class="text-muted">Plex의 <code>statistics_media</code>는 항목 키를 저장하지 않으므로, 아래 상세는 <code>metadata_item_views</code> 기준입니다.</p>
+  {% for type in types %}
+  <details style="margin-bottom:10px; border:1px solid #ddd; padding:8px;">
+    <summary style="cursor:pointer;"><strong>{{ type.type_name }}</strong> <span class="text-muted">({{ type.libraries|length }}개 라이브러리)</span></summary>
+    {% for library in type.libraries %}
+    <details style="margin:8px 0 8px 16px; border:1px solid #eee; padding:8px;">
+      <summary style="cursor:pointer;"><strong>{{ library.name }}</strong> <span class="text-muted">({{ library.count }}건)</span></summary>
+      <table class="table table-condensed table-hover" style="margin:8px 0 0 16px;"><thead><tr><th>사용자</th><th>프로그램</th><th>에피소드/항목</th><th>횟수</th><th>최근 시청</th></tr></thead><tbody>
+      {% for item in library.items %}<tr><td>{{ item.account_name }}</td><td>{{ item.program }}</td><td>{{ item.title }}</td><td>{{ item.count }}</td><td>{{ item.last_at }}</td></tr>{% endfor %}
+      </tbody></table>
+    </details>
+    {% endfor %}
+  </details>
+  {% else %}<p>상세 시청 기록이 없습니다.</p>{% endfor %}
+  <div id="statistics_action_result"></div>
 </div>
 <script>
 $(document).on('submit', '.plex-control-form', function(e) {

@@ -71,7 +71,20 @@ class HistoryManager:
         return self.client().users()
 
     def history(self, account_id, start=0, size=100):
-        return self.client().history(self.account_id(account_id), int(start), min(int(size), 500))
+        rows = self.client().history(self.account_id(account_id), int(start), min(int(size), 500))
+        for row in rows:
+            row['_viewed_at_display'] = self.format_timestamp(row.get('viewedAt') or row.get('@viewedAt'))
+        return rows
+
+    @staticmethod
+    def format_timestamp(value):
+        try:
+            timestamp = float(value)
+            if timestamp > 100000000000:
+                timestamp /= 1000
+            return datetime.fromtimestamp(timestamp).strftime('%Y-%m-%d %H:%M:%S')
+        except (TypeError, ValueError, OverflowError, OSError):
+            return str(value or '-')
 
     def libraries(self):
         return self.client().libraries()
@@ -96,6 +109,7 @@ class HistoryManager:
                 'episodes': [],
             })
             group['count'] += 1
+            row['_viewed_at_display'] = self.format_timestamp(row.get('viewedAt') or row.get('@viewedAt'))
             group['episodes'].append(row)
         libraries = self.libraries()
         for group in groups.values():
@@ -108,11 +122,24 @@ class HistoryManager:
             raise ValueError('프로그램 키가 없습니다.')
         rows = self.client().history(account_id, 0, 5000)
         targets = [row for row in rows if self.program_key(row) == str(program_key)]
-        for row in targets:
-            value = self.row_history_id(row)
-            if value is not None:
-                self.client().delete_history(value)
-        return len(targets)
+        if not targets:
+            return 0
+        self._ensure_plex_stopped()
+        db_path = self._database_path()
+        backup_dir = '/data/db/plex_history_manager_backups'
+        os.makedirs(backup_dir, exist_ok=True)
+        backup_path = os.path.join(backup_dir, f"library-{datetime.now().strftime('%Y%m%d%H%M%S')}.db")
+        shutil.copy2(db_path, backup_path)
+        titles = {str(row.get('grandparentTitle') or row.get('@grandparentTitle') or row.get('title') or row.get('@title') or '') for row in targets}
+        titles.discard('')
+        with sqlite3.connect(db_path, timeout=10) as con:
+            placeholders = ','.join('?' for _ in titles)
+            cur = con.execute(
+                f"DELETE FROM metadata_item_views WHERE account_id=? AND grandparent_title IN ({placeholders})",
+                (account_id, *sorted(titles)),
+            ) if titles else None
+            con.commit()
+            return cur.rowcount if cur else 0
 
     def _database_path(self):
         settings = self.P.ModelSetting.to_dict()
@@ -141,7 +168,53 @@ class HistoryManager:
                    FROM statistics_media s LEFT JOIN accounts a ON a.id=s.account_id
                    GROUP BY s.account_id, s.metadata_type ORDER BY max(s.at) DESC"""
         with sqlite3.connect(f'file:{db_path}?mode=ro', uri=True, timeout=5) as con:
-            return [{'account_id': row[0], 'account_name': row[1], 'metadata_type': row[2], 'type_name': self.media_type_name(row[2]), 'play_count': row[3] or 0, 'duration': row[4] or 0, 'first_at': row[5], 'last_at': row[6], 'row_count': row[7]} for row in con.execute(query)]
+            return [{'account_id': row[0], 'account_name': row[1], 'metadata_type': row[2], 'type_name': self.media_type_name(row[2]), 'play_count': row[3] or 0, 'duration': row[4] or 0, 'first_at': self.format_timestamp(row[5]), 'last_at': self.format_timestamp(row[6]), 'row_count': row[7]} for row in con.execute(query)]
+
+    def statistics_tree(self):
+        """Build media type -> library -> program/episode details.
+        statistics_media is aggregate-only and has no item or library key.
+        """
+        db_path = self._database_path()
+        aggregate_query = """SELECT s.account_id, coalesce(a.name, cast(s.account_id as text)),
+                   s.metadata_type, sum(s.count), sum(s.duration), max(s.at)
+                   FROM statistics_media s LEFT JOIN accounts a ON a.id=s.account_id
+                   GROUP BY s.account_id, s.metadata_type ORDER BY max(s.at) DESC"""
+        detail_query = """SELECT v.account_id, coalesce(a.name, cast(v.account_id as text)),
+                   v.metadata_type, coalesce(ls.name, '알 수 없는 라이브러리'),
+                   coalesce(v.grandparent_title, v.parent_title, v.title, '제목 없음'),
+                   coalesce(v.parent_title, ''), coalesce(v.title, ''),
+                   max(v.viewed_at), count(*)
+                   FROM metadata_item_views v
+                   LEFT JOIN accounts a ON a.id=v.account_id
+                   LEFT JOIN library_sections ls ON ls.id=v.library_section_id
+                   GROUP BY v.account_id, v.metadata_type, v.library_section_id,
+                            v.grandparent_title, v.parent_title, v.title
+                   ORDER BY max(v.viewed_at) DESC"""
+        with sqlite3.connect(f'file:{db_path}?mode=ro', uri=True, timeout=5) as con:
+            aggregates = [
+                {'account_id': row[0], 'account_name': row[1], 'metadata_type': row[2],
+                 'type_name': self.media_type_name(row[2]), 'play_count': row[3] or 0,
+                 'duration': row[4] or 0, 'last_at': self.format_timestamp(row[5])}
+                for row in con.execute(aggregate_query)
+            ]
+            types = {}
+            for row in con.execute(detail_query):
+                type_id = row[2]
+                type_node = types.setdefault(type_id, {
+                    'metadata_type': type_id, 'type_name': self.media_type_name(type_id),
+                    'libraries': [],
+                })
+                library = next((item for item in type_node['libraries'] if item['name'] == row[3]), None)
+                if library is None:
+                    library = {'name': row[3], 'items': [], 'count': 0}
+                    type_node['libraries'].append(library)
+                library['count'] += row[8] or 0
+                library['items'].append({
+                    'account_id': row[0], 'account_name': row[1],
+                    'program': row[4], 'parent_title': row[5], 'title': row[6],
+                    'last_at': self.format_timestamp(row[7]), 'count': row[8] or 0,
+                })
+            return {'aggregates': aggregates, 'types': sorted(types.values(), key=lambda item: item['type_name'])}
 
     def _docker_request(self, method, path):
         socket_path = os.environ.get('PLEX_HISTORY_DOCKER_SOCKET', '/var/run/docker.sock')

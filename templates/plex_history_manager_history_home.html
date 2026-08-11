@@ -27,7 +27,7 @@
     <table class="table table-condensed table-hover" style="margin-top:10px;"><thead><tr><th>에피소드</th><th>재생일</th><th>작업</th></tr></thead><tbody>
     {% for row in program.episodes %}
       {% set history_id = row.get('historyKey') or row.get('@historyKey') or row.get('id') or row.get('@id') %}
-      <tr><td>{{ row.get('title') or row.get('@title') or '-' }}</td><td>{{ row.get('viewedAt') or row.get('@viewedAt') or '-' }}</td><td><form class="history-delete-form" method="post" action="/plex_history_manager/ajax/history/command"><input type="hidden" name="command" value="delete_one"><input type="hidden" name="arg1" value="{{ account_id }}"><input type="hidden" name="arg2" value="{{ history_id }}"><input type="hidden" name="confirm" value="DELETE"><button class="btn btn-warning btn-xs" type="submit">삭제</button></form></td></tr>
+      <tr><td>{{ row.get('title') or row.get('@title') or '-' }}</td><td>{{ row.get('_viewed_at_display') or '-' }}</td><td><form class="history-delete-form" method="post" action="/plex_history_manager/ajax/history/command"><input type="hidden" name="command" value="delete_one"><input type="hidden" name="arg1" value="{{ account_id }}"><input type="hidden" name="arg2" value="{{ history_id }}"><input type="hidden" name="confirm" value="DELETE"><button class="btn btn-warning btn-xs" type="submit">삭제</button></form></td></tr>
     {% endfor %}
     </tbody></table>
   </details>
