@@ -20,6 +20,8 @@ class ModuleHistory(PluginModuleBase):
                 return render_template(f'{__package__}_{name}_setting.html', arg=self.P.ModelSetting.to_dict())
             account_id = req.args.get('account_id', '')
             users = self.P.history_manager.users()
+            if page == 'statistics':
+                return render_template(f'{__package__}_{name}_statistics.html', rows=self.P.history_manager.statistics(), plex_status=self.P.history_manager.plex_container_status())
             settings = self.P.ModelSetting.to_dict()
             try:
                 page_size = max(10, min(int(settings.get('plex_history_page_size') or 100), 500))

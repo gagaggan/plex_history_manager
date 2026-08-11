@@ -1,5 +1,5 @@
 title: "Plex 시청기록 관리"
-version: "0.2.3"
+version: "0.2.4"
 package_name: "plex_history_manager"
 developer: "gagaggan"
 description: "Plex 사용자의 시청기록을 조회하고 선택적으로 삭제합니다."
