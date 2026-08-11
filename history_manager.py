@@ -73,10 +73,10 @@ class HistoryManager:
     def history(self, account_id, start=0, size=100):
         return self.client().history(self.account_id(account_id), int(start), min(int(size), 500))
 
-    @staticmethod
     def libraries(self):
         return self.client().libraries()
 
+    @staticmethod
     def program_key(row: dict) -> str:
         return str(row.get('grandparentKey') or row.get('@grandparentKey') or row.get('grandparentTitle') or row.get('@grandparentTitle') or row.get('key') or row.get('@key') or row.get('title') or row.get('@title') or '')
 

@@ -76,8 +76,8 @@ class PlexClient:
             account_id = item.get('id') or item.get('@id')
             if not account_id:
                 continue
-            title = item.get('title') or item.get('@title') or item.get('username') or item.get('@username')
-            username = item.get('username') or item.get('@username') or ''
+            title = item.get('title') or item.get('@title') or item.get('name') or item.get('@name') or item.get('username') or item.get('@username')
+            username = item.get('username') or item.get('@username') or item.get('name') or item.get('@name') or ''
             result.append(PlexUser(int(account_id), html.escape(str(title or account_id)), str(username)))
         return sorted(result, key=lambda user: user.title.lower())
 
