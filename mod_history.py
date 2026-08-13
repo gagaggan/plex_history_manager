@@ -5,20 +5,24 @@ name = 'history'
 
 class ModuleHistory(PluginModuleBase):
     db_default = {
-        'plex_history_plex_url': 'http://127.0.0.1:32400',
-        'plex_history_plex_token': '',
         'plex_history_page_size': '100',
         'plex_history_docker_container': 'plex',
         'plex_history_backup_dir': '/data/db/plex_history_manager_backups',
     }
 
     def __init__(self, P):
-        super(ModuleHistory, self).__init__(P, name=name, first_menu='home')
+        super(ModuleHistory, self).__init__(P, name=name, first_menu='manage')
 
     def process_menu(self, page, req):
         try:
             if page == 'setting':
                 return render_template(f'{__package__}_{name}_setting.html', arg=self.P.ModelSetting.to_dict())
+            if page == 'manage':
+                return render_template(
+                    f'{__package__}_{name}_manage.html',
+                    plex_status=self.P.history_manager.plex_container_status(),
+                    arg=self.P.ModelSetting.to_dict(),
+                )
             if page == 'backups':
                 return render_template(
                     f'{__package__}_{name}_backups.html',
@@ -40,7 +44,7 @@ class ModuleHistory(PluginModuleBase):
                             if item['account_id'] not in seen_users:
                                 statistic_users.append({'account_id': item['account_id'], 'title': item['account_name']})
                                 seen_users.add(item['account_id'])
-                return render_template(f'{__package__}_{name}_statistics.html', rows=tree['aggregates'], types=tree['types'], statistic_users=statistic_users, account_id=account_id, plex_status=self.P.history_manager.plex_container_status())
+                return render_template(f'{__package__}_{name}_statistics.html', rows=tree['aggregates'], types=tree['types'], statistic_users=statistic_users, account_id=account_id)
             users = self.P.history_manager.users()
             settings = self.P.ModelSetting.to_dict()
             try:

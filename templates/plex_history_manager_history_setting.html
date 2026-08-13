@@ -2,10 +2,8 @@
 {% block content %}
 <div class="container-fluid">
   <h3>Plex 시청기록 설정</h3>
-  <p class="text-muted">Plex 서버의 주소와 관리자 토큰을 입력하세요. 토큰은 FlaskFarm DB에 저장됩니다.</p>
+  <p class="text-muted">Plex 연결 정보는 PlexMate 설정을 자동으로 사용합니다.</p>
   <form id="setting" method="post" action="/plex_history_manager/ajax/setting_save">
-    <div class="form-group"><label>Plex 주소</label><input class="form-control" name="plex_history_plex_url" value="{{ arg.get('plex_history_plex_url', '') }}" placeholder="http://127.0.0.1:32400"></div>
-    <div class="form-group"><label>Plex 토큰</label><input class="form-control" type="password" name="plex_history_plex_token" value="{{ arg.get('plex_history_plex_token', '') }}"></div>
     <div class="form-group"><label>페이지 크기</label><input class="form-control" type="number" min="10" max="500" name="plex_history_page_size" value="{{ arg.get('plex_history_page_size', '100') }}"></div>
     <button class="btn btn-primary" type="submit">저장</button><span id="save_result" style="margin-left:12px"></span>
   </form>

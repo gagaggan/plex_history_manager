@@ -3,7 +3,6 @@
 <div class="container-fluid">
   <h3>Plex 재생 통계</h3>
   <p class="text-warning">이 통계는 Plex DB의 <code>statistics_media</code>를 사용합니다. 삭제 전 Plex를 중지하세요.</p>
-  <p>Plex 상태: <strong>{{ plex_status.status }}</strong> {% if plex_status.running %}<span class="text-success">실행 중</span>{% endif %}</p>
   <form method="get" action="/plex_history_manager/history/statistics" class="form-inline" style="margin-bottom:12px">
     <select class="form-control" name="account_id" onchange="this.form.submit()">
       <option value="">전체 사용자</option>
@@ -14,8 +13,6 @@
   <form id="selected_statistics_delete_form" class="statistics-delete-form" method="post" action="/plex_history_manager/ajax/history/command">
     <input type="hidden" name="command" value="delete_statistics"><input type="hidden" name="arg1" value="{{ account_id }}"><input type="hidden" name="arg2" value=""><input type="hidden" name="confirm" value="DELETE_STATISTICS">
   </form>
-  <form class="plex-control-form" method="post" action="/plex_history_manager/ajax/history/command" style="display:inline"><input type="hidden" name="command" value="plex_stop"><button class="btn btn-warning btn-sm">Plex 중지</button></form>
-  <form class="plex-control-form" method="post" action="/plex_history_manager/ajax/history/command" style="display:inline"><input type="hidden" name="command" value="plex_start"><button class="btn btn-success btn-sm">Plex 시작</button></form>
   <table class="table table-bordered table-hover"><thead><tr><th>사용자</th><th>미디어 유형</th><th>재생 횟수</th><th>재생 시간(초)</th><th>최근 재생</th><th>작업</th></tr></thead><tbody>
   {% for row in rows %}
   <tr><td>{{ row.account_name }} <small>(ID {{ row.account_id }})</small></td><td>{{ row.type_name }}</td><td>{{ row.play_count }}</td><td>{{ row.duration }}</td><td>{{ row.last_at }}</td><td><form class="statistics-delete-form" method="post" action="/plex_history_manager/ajax/history/command"><input type="hidden" name="command" value="delete_statistics"><input type="hidden" name="arg1" value="{{ row.account_id }}"><input type="hidden" name="arg2" value="{{ row.metadata_type }}"><input type="hidden" name="confirm" value="DELETE_STATISTICS"><button class="btn btn-danger btn-xs">삭제</button></form></td></tr>
@@ -39,14 +36,6 @@
   <div id="statistics_action_result"></div>
 </div>
 <script>
-$(document).on('submit', '.plex-control-form', function(e) {
-  e.preventDefault(); var form=$(this);
-  if (!window.confirm(form.find('input[name="command"]').val() === 'plex_stop' ? 'Plex를 중지할까요?' : 'Plex를 시작할까요?')) return false;
-  $.ajax({url:form.attr('action'), type:'POST', data:form.serialize(), dataType:'json'})
-   .done(function(ret){ $('#statistics_action_result').text('Plex 작업이 완료되었습니다.').css('color','green'); setTimeout(function(){ location.reload(); },500); })
-   .fail(function(xhr){ var msg=(xhr.responseJSON && xhr.responseJSON.error) || 'Plex 작업에 실패했습니다.'; $('#statistics_action_result').text(msg).css('color','red'); });
-  return false;
-});
 $(document).on('click', '.statistics-delete-selected', function() {
   if (!window.confirm('선택한 사용자의 재생 통계를 모두 삭제할까요?')) return;
   $('#selected_statistics_delete_form').trigger('submit');
