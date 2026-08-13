@@ -7,6 +7,7 @@ __menu = {
     'list': [
         {'uri': 'history/home', 'name': '사용자별 기록'},
         {'uri': 'history/statistics', 'name': '재생 통계'},
+        {'uri': 'history/backups', 'name': '백업 관리'},
         {'uri': 'history/setting', 'name': '설정'},
     ],
 }

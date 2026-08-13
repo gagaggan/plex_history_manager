@@ -9,6 +9,7 @@ class ModuleHistory(PluginModuleBase):
         'plex_history_plex_token': '',
         'plex_history_page_size': '100',
         'plex_history_docker_container': 'plex',
+        'plex_history_backup_dir': '/data/db/plex_history_manager_backups',
     }
 
     def __init__(self, P):
@@ -18,6 +19,11 @@ class ModuleHistory(PluginModuleBase):
         try:
             if page == 'setting':
                 return render_template(f'{__package__}_{name}_setting.html', arg=self.P.ModelSetting.to_dict())
+            if page == 'backups':
+                return render_template(
+                    f'{__package__}_{name}_backups.html',
+                    backups=self.P.history_manager.backup_list(),
+                )
             account_id = req.args.get('account_id', '')
             if page == 'statistics':
                 all_tree = self.P.history_manager.statistics_tree()
@@ -42,7 +48,7 @@ class ModuleHistory(PluginModuleBase):
             except (TypeError, ValueError):
                 page_size = 100
             history_types = self.P.history_manager.history_tree(account_id) if account_id else []
-            return render_template(f'{__package__}_{name}_home.html', users=users, rows=rows, history_types=history_types, account_id=account_id)
+            return render_template(f'{__package__}_{name}_home.html', users=users, history_types=history_types, account_id=account_id)
         except Exception as e:
             self.P.logger.error(f'Exception:{str(e)}')
             self.P.logger.error(traceback.format_exc())
@@ -50,6 +56,14 @@ class ModuleHistory(PluginModuleBase):
 
     def process_command(self, command, arg1, arg2, arg3, req):
         try:
+            if command == 'create_backup':
+                backup = self.P.history_manager.create_backup()
+                return jsonify({'ok': True, 'message': f'백업을 생성했습니다: {backup["name"]} ({backup["size_display"]})'})
+            if command == 'delete_backup':
+                if req.form.get('confirm') != 'DELETE_BACKUP':
+                    return jsonify({'ok': False, 'error': '백업 삭제 확인 문구가 올바르지 않습니다.'}), 400
+                name = self.P.history_manager.delete_backup(arg1)
+                return jsonify({'ok': True, 'message': f'백업을 삭제했습니다: {name}'})
             if command == 'delete_guid':
                 if req.form.get('confirm') != 'DELETE_GUID':
                     return jsonify({'ok': False, 'error': '항목 삭제 확인 문구가 올바르지 않습니다.'}), 400
@@ -68,7 +82,7 @@ class ModuleHistory(PluginModuleBase):
                 if req.form.get('confirm') != 'DELETE_STATISTICS':
                     return jsonify({'ok': False, 'error': '재생 통계 삭제 확인 문구가 올바르지 않습니다.'}), 400
                 count, backup = self.P.history_manager.delete_statistics(arg1, arg2)
-                return jsonify({'ok': True, 'message': f'{count}건의 통계를 삭제했습니다. 백업: {backup}'})
+                return jsonify({'ok': True, 'message': f'{count}건의 통계를 삭제했습니다.'})
             if command == 'delete_program':
                 if req.form.get('confirm') != 'DELETE_PROGRAM':
                     return jsonify({'ok': False, 'error': '프로그램 삭제 확인 문구가 올바르지 않습니다.'}), 400
@@ -79,13 +93,13 @@ class ModuleHistory(PluginModuleBase):
                     return jsonify({'ok': False, 'error': '전체 시청데이터 삭제 확인 문구가 올바르지 않습니다.'}), 400
                 deleted, backup = self.P.history_manager.delete_all_playback_data()
                 total = sum(deleted.values())
-                return jsonify({'ok': True, 'message': f'전체 시청 데이터 {total}건을 삭제했습니다. 백업: {backup}'})
+                return jsonify({'ok': True, 'message': f'전체 시청 데이터 {total}건을 삭제했습니다.'})
             if command == 'delete_all':
                 if req.form.get('confirm') != 'DELETE_ALL':
                     return jsonify({'ok': False, 'error': '전체 삭제 확인 문구가 올바르지 않습니다.'}), 400
                 deleted, backup = self.P.history_manager.delete_all(arg1)
                 total = sum(deleted.values())
-                return jsonify({'ok': True, 'message': f'사용자 데이터 {total}건을 삭제했습니다. (시청기록 {deleted.get("metadata_item_views", 0)}건, 시청상태 {deleted.get("metadata_item_settings", 0)}건, 재생통계 {deleted.get("statistics_media", 0)}건) 백업: {backup}'})
+                return jsonify({'ok': True, 'message': f'사용자 데이터 {total}건을 삭제했습니다. (시청기록 {deleted.get("metadata_item_views", 0)}건, 시청상태 {deleted.get("metadata_item_settings", 0)}건, 재생통계 {deleted.get("statistics_media", 0)}건)'})
             return jsonify({'ok': False, 'error': 'unknown command'}), 400
         except Exception as e:
             self.P.logger.error(traceback.format_exc())

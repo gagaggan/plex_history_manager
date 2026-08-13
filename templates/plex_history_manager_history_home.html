@@ -3,7 +3,7 @@
 <div class="container-fluid">
   <h3>Plex 사용자별 시청기록</h3>
   <p class="text-muted">미디어 유형 → 라이브러리 → 프로그램/에피소드 순서로 표시합니다.</p>
-  <p class="text-warning">사용자 전체 삭제는 시청기록, 시청상태, 재생통계를 모두 삭제하며 Plex 중지 상태에서만 실행됩니다. 실행 전 DB 백업을 생성합니다.</p>
+  <p class="text-warning">사용자 전체 삭제는 시청기록, 시청상태, 재생통계를 모두 삭제하며 Plex 중지 상태에서만 실행됩니다. 삭제 전 백업 관리에서 필요한 백업을 먼저 생성하세요.</p>
   <form method="get" action="/plex_history_manager/history/home" class="form-inline" style="margin-bottom:16px">
     <select class="form-control" name="account_id" onchange="this.form.submit()">
       <option value="">사용자를 선택하세요</option>

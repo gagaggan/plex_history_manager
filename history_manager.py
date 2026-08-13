@@ -253,13 +253,7 @@ class HistoryManager:
         """Delete selected history rows and matching watch settings by GUID."""
         self._ensure_plex_stopped()
         db_path = self._database_path()
-        backup_dir = '/data/db/plex_history_manager_backups'
-        os.makedirs(backup_dir, exist_ok=True)
-        backup_path = os.path.join(
-            backup_dir,
-            f"library-partial-{account_id}-{datetime.now().strftime('%Y%m%d%H%M%S')}.db",
-        )
-        shutil.copy2(db_path, backup_path)
+        backup_path = ''
         guids = {
             str(row.get('guid') or row.get('@guid') or '')
             for row in targets
@@ -296,6 +290,62 @@ class HistoryManager:
                 view_count = cur.rowcount
             con.commit()
         return {'views': view_count, 'settings': settings_count, 'backup': backup_path}
+
+    def _backup_dir(self):
+        configured = self.P.ModelSetting.to_dict().get('plex_history_backup_dir') or ''
+        return str(configured).strip() or '/data/db/plex_history_manager_backups'
+
+    def backup_list(self):
+        directory = self._backup_dir()
+        os.makedirs(directory, exist_ok=True)
+        rows = []
+        total_size = 0
+        for entry in os.scandir(directory):
+            if not entry.is_file() or not entry.name.endswith('.db'):
+                continue
+            stat = entry.stat()
+            total_size += stat.st_size
+            rows.append({
+                'name': entry.name,
+                'size': stat.st_size,
+                'size_display': self.format_size(stat.st_size),
+                'created_at': datetime.fromtimestamp(stat.st_mtime).strftime('%Y-%m-%d %H:%M:%S'),
+            })
+        rows.sort(key=lambda item: item['name'], reverse=True)
+        return {'directory': directory, 'count': len(rows), 'total_size': total_size,
+                'total_size_display': self.format_size(total_size), 'files': rows}
+
+    @staticmethod
+    def format_size(value):
+        size = float(value or 0)
+        for unit in ('B', 'KB', 'MB', 'GB', 'TB'):
+            if size < 1024 or unit == 'TB':
+                return f'{size:.1f} {unit}' if unit != 'B' else f'{int(size)} B'
+            size /= 1024
+
+    def create_backup(self):
+        self._ensure_plex_stopped()
+        db_path = self._database_path()
+        directory = self._backup_dir()
+        os.makedirs(directory, exist_ok=True)
+        filename = f"library-manual-{datetime.now().strftime('%Y%m%d-%H%M%S-%f')}.db"
+        target = os.path.join(directory, filename)
+        shutil.copy2(db_path, target)
+        return {'name': filename, 'path': target, 'size': os.path.getsize(target),
+                'size_display': self.format_size(os.path.getsize(target))}
+
+    def delete_backup(self, name):
+        name = os.path.basename(str(name or ''))
+        if not name or name != str(name) or not name.endswith('.db') or name in ('.', '..'):
+            raise ValueError('잘못된 백업 파일명입니다.')
+        directory = os.path.realpath(self._backup_dir())
+        target = os.path.realpath(os.path.join(directory, name))
+        if os.path.dirname(target) != directory:
+            raise ValueError('허용되지 않은 백업 경로입니다.')
+        if not os.path.isfile(target):
+            raise FileNotFoundError('백업 파일을 찾을 수 없습니다.')
+        os.remove(target)
+        return name
 
     def _database_path(self):
         settings = self.P.ModelSetting.to_dict()
@@ -429,10 +479,7 @@ class HistoryManager:
             raise ValueError('잘못된 미디어 유형입니다.')
         self._ensure_plex_stopped()
         db_path = self._database_path()
-        backup_dir = '/data/db/plex_history_manager_backups'
-        os.makedirs(backup_dir, exist_ok=True)
-        backup_path = os.path.join(backup_dir, f"library-{datetime.now().strftime('%Y%m%d%H%M%S')}.db")
-        shutil.copy2(db_path, backup_path)
+        backup_path = ''
         with sqlite3.connect(db_path, timeout=10) as con:
             if metadata_type:
                 cur = con.execute('DELETE FROM statistics_media WHERE account_id=? AND metadata_type=?', (account_id, int(metadata_type)))
@@ -461,13 +508,7 @@ class HistoryManager:
         """Delete all playback-related DB rows after creating one backup."""
         self._ensure_plex_stopped()
         db_path = self._database_path()
-        backup_dir = '/data/db/plex_history_manager_backups'
-        os.makedirs(backup_dir, exist_ok=True)
-        backup_path = os.path.join(
-            backup_dir,
-            f"library-all-playback-{datetime.now().strftime('%Y%m%d%H%M%S')}.db",
-        )
-        shutil.copy2(db_path, backup_path)
+        backup_path = ''
         deleted = {}
         with sqlite3.connect(db_path, timeout=10) as con:
             for table in (
@@ -486,13 +527,7 @@ class HistoryManager:
         account_id = self.account_id(account_id)
         self._ensure_plex_stopped()
         db_path = self._database_path()
-        backup_dir = '/data/db/plex_history_manager_backups'
-        os.makedirs(backup_dir, exist_ok=True)
-        backup_path = os.path.join(
-            backup_dir,
-            f"library-user-{account_id}-{datetime.now().strftime('%Y%m%d%H%M%S')}.db",
-        )
-        shutil.copy2(db_path, backup_path)
+        backup_path = ''
         deleted = {}
         with sqlite3.connect(db_path, timeout=10) as con:
             for table in ('metadata_item_views', 'metadata_item_settings', 'statistics_media'):

@@ -1,0 +1,58 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="container-fluid">
+  <h3>백업 관리</h3>
+  <p class="text-muted">삭제 작업은 자동 백업을 만들지 않습니다. 필요한 시점에 Plex를 중지한 뒤 수동으로 백업을 생성하세요.</p>
+  <p>저장 위치: <code>{{ backups.directory }}</code></p>
+  <p>백업 파일: <strong>{{ backups.count }}개</strong> · 전체 용량: <strong>{{ backups.total_size_display }}</strong></p>
+  <form class="backup-create-form" method="post" action="/plex_history_manager/ajax/history/command" style="margin-bottom:16px">
+    <input type="hidden" name="command" value="create_backup">
+    <button class="btn btn-primary" type="submit">현재 Plex DB 백업 생성</button>
+  </form>
+  <div id="backup_action_result" style="margin:8px 0;"></div>
+  <table class="table table-bordered table-hover">
+    <thead><tr><th>파일명</th><th>크기</th><th>생성일</th><th>작업</th></tr></thead>
+    <tbody>
+    {% for file in backups.files %}
+      <tr>
+        <td><code>{{ file.name }}</code></td>
+        <td>{{ file.size_display }}</td>
+        <td>{{ file.created_at }}</td>
+        <td>
+          <form class="backup-delete-form" method="post" action="/plex_history_manager/ajax/history/command" style="display:inline">
+            <input type="hidden" name="command" value="delete_backup">
+            <input type="hidden" name="arg1" value="{{ file.name }}">
+            <input type="hidden" name="confirm" value="DELETE_BACKUP">
+            <button class="btn btn-danger btn-xs" type="submit">삭제</button>
+          </form>
+        </td>
+      </tr>
+    {% else %}
+      <tr><td colspan="4" class="text-muted">백업 파일이 없습니다.</td></tr>
+    {% endfor %}
+    </tbody>
+  </table>
+</div>
+<script>
+$(document).on('submit', '.backup-create-form, .backup-delete-form', function(e) {
+  e.preventDefault();
+  var form = $(this);
+  var deleting = form.hasClass('backup-delete-form');
+  if (deleting && !window.confirm('선택한 백업 파일을 삭제할까요?')) return false;
+  var result = $('#backup_action_result');
+  result.text(deleting ? '삭제 중...' : '백업 생성 중...');
+  form.find('button').prop('disabled', true);
+  $.ajax({url: form.attr('action'), type: 'POST', data: form.serialize(), dataType: 'json'})
+    .done(function(ret) {
+      result.text(ret.message || '작업이 완료되었습니다.').css('color', 'green');
+      setTimeout(function() { location.reload(); }, 500);
+    })
+    .fail(function(xhr) {
+      var data = xhr.responseJSON || {};
+      result.text(data.error || '작업에 실패했습니다.').css('color', 'red');
+      form.find('button').prop('disabled', false);
+    });
+  return false;
+});
+</script>
+{% endblock %}
